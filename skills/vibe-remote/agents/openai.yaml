@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vibe Remote"
+  short_description: "Configure voice coding, APP tasks, and CLI window switching"
+  default_prompt: "Use $vibe-remote to configure my Xiaomi remote for Doubao or Typeless and switch APP tasks or CLI windows."

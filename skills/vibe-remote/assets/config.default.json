@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "voice_provider": "doubao",
+  "audio_device": "MiRemoteV 2ch",
+  "bridge": "sayall",
+  "voice_profiles": {
+    "doubao": {
+      "behavior": "hold_key",
+      "key": "Fn",
+      "simulate_fn_tap": false
+    },
+    "typeless": {
+      "behavior": "paired_taps",
+      "key": "Fn",
+      "simulate_fn_tap": true
+    }
+  },
+  "workspaces": [
+    {
+      "id": "codex-app",
+      "mode": "app",
+      "app_bundle_id": "com.openai.codex",
+      "window_title": null,
+      "task_anchor": null,
+      "preview_url": null,
+      "verified": false
+    },
+    {
+      "id": "chatgpt-app",
+      "mode": "app",
+      "app_bundle_id": "com.openai.chat",
+      "window_title": null,
+      "task_anchor": null,
+      "preview_url": null,
+      "verified": false
+    },
+    {
+      "id": "cli-local",
+      "mode": "cli",
+      "terminal_app": "iTerm2",
+      "host": null,
+      "tmux_session": null,
+      "verified": false
+    },
+    {
+      "id": "cli-mini",
+      "mode": "cli",
+      "terminal_app": "iTerm2",
+      "host": "mini",
+      "tmux_session": null,
+      "verified": false
+    }
+  ]
+}
