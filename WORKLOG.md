@@ -16,3 +16,8 @@ validation. Checks cover distinct provider lifecycles, repeat suppression, unkno
 and mismatched target guards, explicit CLI AI identity, exact session/window arguments,
 selection verification failure, no-wrap boundaries, and installer conflict handling.
 Bluetooth audio, APP GUI operations, native terminal switching, and live tmux remain untested.
+
+Installed into /Users/weiqi/.codex/skills/vibe-remote by symlink to the durable local
+Git repository /Users/weiqi/.codex/skill-projects/vibe-remote. Remote repository creation
+and push were rejected by automatic approval because remote publication was not authorized.
+No remote repository was created and no source was uploaded.
