@@ -24,6 +24,9 @@
 - The installed ~/.codex/skills/vibe-remote symlink now points into the primary checkout's
   skills/vibe-remote directory. Update here; do not continue editing the retained old copy.
 - Publish this project's original code/docs as MIT in BreezeLife/vibe-remote-skill.
+- Public publishing is complete. This checkout's origin uses the existing authenticated
+  GitHub SSH connection; HTTPS OAuth lacks workflow scope and rejected the initial push.
+  No account reauthorization, new key or global Git setting was required.
 - A missing or non-boolean recording observation is unknown, not evidence capture stopped.
   Require explicit recording=false before starting/sending or changing workspaces.
 - System volume and dictation cleanup remain available independently of normal focus gates.

@@ -63,3 +63,21 @@ Updated the known installed symlink to the canonical checkout atomically; the or
 source folder remains intact. The installer confirmed this source was already installed.
 Created a gitignored local template without overwriting any config; all bindings remain
 unverified. Hardware audio, GUI operations and live tmux remain pending physical acceptance.
+
+## 2026-10-02 — public GitHub synchronization
+
+Created https://github.com/BreezeLife/vibe-remote-skill as a public repository. The first
+HTTPS push was rejected because the existing OAuth credential lacks workflow scope.
+Verified the pre-existing GitHub SSH identity as BreezeLife and set this repository's
+origin to git@github.com:BreezeLife/vibe-remote-skill.git. The SSH push succeeded without
+changing account authorization, keys, global Git settings or original commit history.
+
+GitHub recognized the MIT license and main as the default branch. Confirmed remote main
+and local HEAD both pointed to code-publication commit 4c4b98c, with a clean working tree.
+All four Linux/macOS and Python 3.10/3.13 jobs passed:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/36899566684.
+
+The run flagged the newly added checkout v4 dependency's deprecated Node 20 runtime.
+Updated the pinned checkout dependency to the official v6 revision using Node 24 and
+prepared this final status synchronization. No application behavior changed in this step.
+Remaining work is the physical acceptance sequence in TASKS.md and docs/SETUP.md.

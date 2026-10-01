@@ -30,7 +30,7 @@ window selection, against an explicitly verified existing session.
 
 Canonical development checkout: Project-VibeRemote. The existing local Git history was
 recovered from ~/.codex/skill-projects/vibe-remote on 2026-10-02 without deleting the original.
-GitHub destination: https://github.com/BreezeLife/vibe-remote-skill (public, MIT).
+Public repository: https://github.com/BreezeLife/vibe-remote-skill (MIT), synchronized on main.
 
 README.md and docs/SETUP.md are the user entry points; README.en.md provides an English
 introduction. TASKS.md contains current acceptance state; MEMORY.md stores durable choices,

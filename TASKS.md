@@ -12,7 +12,13 @@ Updated: 2026-10-02 (Asia/Shanghai).
 - [x] Fix unknown recording state permitting actions and repeated workspace-picker events.
 - [x] Verify 30 unit tests, skill metadata, neutral/local templates and the Bluetooth diagnostic.
 - [x] Update the installed skill link to the canonical checkout while retaining the old copy.
-- [ ] Publish and verify GitHub synchronization and hosted checks.
+- [x] Publish the public MIT repository and verify main synchronization and all four hosted checks.
+
+Repository: https://github.com/BreezeLife/vibe-remote-skill.
+Code-publication checks passed on Linux/macOS with Python 3.10/3.13:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/36899566684.
+The local working tree is clean after the final status synchronization; local configuration
+remains ignored. The installed skill points to this project's source.
 
 ## Observed environment
 
