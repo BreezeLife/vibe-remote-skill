@@ -155,8 +155,10 @@ def plan_event(config, workspace, state, button, gesture):
                      ["end_remote_capture", "drain_pending_audio", finish,
                       "request_verified_segment_cancel"])
     if button == "power" and gesture == "click":
-        if state.get("recording") is True:
-            return block("Finish or cancel dictation before choosing a workspace")
+        if state.get("repeated") is True:
+            return block("Workspace selection must not repeat")
+        if state.get("recording") is not False:
+            return block("Inactive dictation must be confirmed before choosing a workspace")
         return allow("choose_workspace", ["open_workspace_picker"])
     if gesture == "release":
         return block("No mapped release action")
@@ -170,8 +172,8 @@ def plan_event(config, workspace, state, button, gesture):
     if state.get("repeated") is True and button not in (
             "up", "down", "volume_up", "volume_down"):
         return block("This button action must not repeat")
-    if state.get("recording") is True:
-        return block("Finish or cancel dictation before another action")
+    if state.get("recording") is not False:
+        return block("Inactive dictation must be confirmed before another action")
     context, runtime = state.get("context"), state.get("runtime")
     if button == "mic" and gesture == "hold":
         if context != "ai_input" or runtime not in ("ready", "draft"):
@@ -343,17 +345,41 @@ def doctor(scan_bluetooth=False):
             raise RuntimeError("Bluetooth inventory failed")
         candidates = []
 
-        def visit(value):
+        def is_remote_name(name):
+            return isinstance(name, str) and any(
+                part in name.lower() for part in ("mi rc", "xiaomi", "小米", "remote"))
+
+        def connection_state(value):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in ("yes", "true", "connected", "attrib_yes"):
+                    return True
+                if normalized in ("no", "false", "disconnected", "attrib_no"):
+                    return False
+            return None
+
+        def visit(value, category_state=None, keyed_name=None):
             if isinstance(value, dict):
-                name = str(value.get("_name", ""))
-                if any(part in name.lower() for part in ("mi rc", "xiaomi", "小米", "remote")):
-                    connected = value.get("device_connected", value.get("connected"))
+                name = value.get("_name", keyed_name)
+                if is_remote_name(name):
+                    connected = category_state
+                    if connected is None:
+                        connected = connection_state(
+                            value.get("device_connected", value.get("connected")))
                     candidates.append({"name": name, "connected": connected})
-                for child in value.values():
-                    visit(child)
+                for key, child in value.items():
+                    child_state = category_state
+                    if key == "device_connected" and isinstance(child, (dict, list)):
+                        child_state = True
+                    elif key == "device_not_connected" and isinstance(child, (dict, list)):
+                        child_state = False
+                    child_name = key if isinstance(child, dict) and is_remote_name(key) else None
+                    visit(child, child_state, child_name)
             elif isinstance(value, list):
                 for child in value:
-                    visit(child)
+                    visit(child, category_state)
         visit(json.loads(result.stdout))
         report["bluetooth_candidates"] = candidates
     return report
