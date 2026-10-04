@@ -15,7 +15,7 @@ struct VibeRemoteApp: App {
         .defaultSize(width: 760, height: 640)
         .commands { CommandGroup(replacing: .newItem) {} }
 
-        MenuBarExtra("Vibe Remote", systemImage: model.draft.isBusy ? "waveform" : "mic.circle") {
+        MenuBarExtra("Vibe Remote", systemImage: model.isBusy ? "waveform" : "mic.circle") {
             RemoteMenu(model: model)
         }
     }
@@ -33,8 +33,8 @@ private struct RemoteMenu: View {
             openWindow(id: "remote")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button("复制草稿", action: model.copyDraft).disabled(!model.draft.canCopy)
-        Button("结束收音", action: model.stopCapture).disabled(model.draft.phase != .capturing)
+        Button("复制草稿", action: model.copyDraft).disabled(!model.canCopy)
+        Button("结束收音", action: model.stopCapture).disabled(!model.isReceivingAudio)
         Divider()
         Button("退出 Vibe Remote") {
             model.shutdown()

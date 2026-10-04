@@ -41,6 +41,8 @@ jobs:
         run: bash scripts/test_macos_core.sh
       - name: Speech PCM and session checks
         run: bash scripts/test_macos_speech.sh
+      - name: Voice-key integration regressions
+        run: bash scripts/test_macos_model.sh
       - name: Build and verify app bundle
         env:
           VIBE_OUTPUT_DIR: ${{ runner.temp }}/vibe-remote-build

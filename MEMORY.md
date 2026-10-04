@@ -51,3 +51,21 @@
   Finalizing blocks editing/copying until settled, and stale speech callbacks are ignored.
 - Native app privacy authorization and real remote audio acceptance must be observed;
   build/tests do not establish hardware success. No microphone fallback to the Mac.
+
+## 2026-10-05 — transport and recognition failures
+
+- Keep physical audio reception separate from Speech lifecycle. A missing permission,
+  failed start, early final result or recognition error must not call the manual BLE stop
+  path. Keep measuring remote audio until physical release, preserve existing/partial
+  drafts, and allow at most one recognition attempt per physical hold.
+- When recognition finishes before physical release, keep the current utterance
+  cancellable until release. Ignore late text/error/completion while retaining its rollback.
+- Only explicit manual stops and capture watchdogs use the stop gate that requires
+  reconnecting. Report timeout causes separately from a user-requested stop.
+- Read Speech authorization from the current app's OS identity at startup and each
+  new hold. A command-line probe's permission result does not establish app permission.
+- Show recognition errors next to transport/audio status. Permission granted does not
+  establish local language availability; neither establishes successful physical audio.
+- Test the actual RemoteModel through injected service interfaces, in addition to core
+  protocol and Speech PCM tests. Synthetic tests never instantiate real Bluetooth or
+  recognition services, request permissions, or access the user's clipboard.

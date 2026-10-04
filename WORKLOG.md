@@ -183,3 +183,49 @@ again after packaging. A synthetic unrelated-app fixture was preserved byte-for-
 and the build refused it before compiling. The implementation commit's hosted native
 job (XCTest, standalone core checks, Speech checks, release packaging) and four Python
 jobs all passed: https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37212405473.
+
+## 2026-10-05 — voice-key disconnect repair (0.1.1)
+
+The user reported that connecting and pressing the voice key immediately disconnected
+the app. Their screenshot showed “已手动停止；重新连接后继续”, with “等待说话” and
+“等待音频”. Source tracing showed this status requires a host-requested manual stop:
+RemoteModel called stopCapture when Speech was not enabled, start threw, or recognition
+finished early; MIC_CLOSE/AUDIO_STOP then invoked the manual-stop reconnect gate.
+The screenshot cannot distinguish missing authorization, local language availability or
+another Speech error. A CLI authorization probe has a different identity and is not
+evidence of the running app's permission state.
+
+Separated physical reception from recognition in the model. Authorization is read from
+the app's OS status at initialization and every new hold. Missing authorization and
+recognition failures keep the stream open until release and retain the actual error;
+signal/sample counts work independently of transcription. A hold owns at most one
+recognition attempt, including when authorization arrives midway or Speech ends early.
+No automatic online fallback, Mac microphone capture or transcript persistence was added.
+
+Review found that early completion initially discarded the current segment's cancellation
+snapshot. The final implementation retains it until physical release or explicit cancel,
+ignores late callbacks, and prevents remaining PCM reaching a finished recognizer. A new
+hold while the previous result is finalizing remains audio-only until release. Explicit
+manual stops still use ManualStopGate, and watchdog stops now show the 8-second silence
+or 90-second duration cause instead of claiming a user action. Recognition errors appear
+directly below audio status; the UI displays version 0.1.1 and distinguishes authorization
+from available recognition. Tests were added to GitHub's native job.
+
+Evidence: fake-service tests against the original model yielded 9 scenarios / 50 assertions
+/ 22 failures. Added cancellation checks then reproduced 9 failures in 15 scenarios / 107
+assertions. Final model checks passed 15 scenarios / 111 assertions, including both fixes,
+duplicate events, authorization changes, overlapping holds, synchronous append/finish
+errors and late callbacks. These tests compile the real model with injected fake services;
+they never initialize a Bluetooth central or recognizer, request TCC access, or use the
+clipboard. Independent code review found no remaining substantive issue.
+
+The 25 core tests, 42 Speech PCM/session assertions, 30 Python tests, neutral template
+validation, shell syntax and git diff --check also passed. Release 0.1.1 (build 2) compiled
+to /private/tmp/vibe-remote-0.1.1-build/Vibe Remote.app and passed strict ad-hoc signature
+verification. This is a prepared artifact; real permission, language, audio and two-hold
+acceptance are still pending.
+
+Two old app processes were observed: the superseded cloud-workspace build and the local
+~/Applications build. No matching SayAll/remote bridge process was found. Both old windows
+were left running while the user was asked whether any in-memory drafts need preserving
+before replacement/relaunch. Unrelated STATUS.md and .project-pulse/ remain untouched.

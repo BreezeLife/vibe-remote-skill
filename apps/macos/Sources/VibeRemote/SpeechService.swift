@@ -37,6 +37,8 @@ final class SpeechService {
     private var finishing = false
     private var lastText = ""
 
+    var isAuthorized: Bool { SFSpeechRecognizer.authorizationStatus() == .authorized }
+
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
         precondition(Thread.isMainThread)
         let status = SFSpeechRecognizer.authorizationStatus()

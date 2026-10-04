@@ -42,6 +42,7 @@ final class BluetoothService: NSObject {
     private var opening = false
     private var streaming = false
     private var manualStopGate = ManualStopGate()
+    private var pendingStopReason: String?
     private var streamID: UInt8 = 0
     private var streamStartedAt: TimeInterval = 0
     private var lastAudioAt: TimeInterval = 0
@@ -90,20 +91,25 @@ final class BluetoothService: NSObject {
     }
 
     func stopCapture() {
+        stopCapture(reason: "已手动停止")
+    }
+
+    private func stopCapture(reason: String) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { [weak self] in self?.stopCapture() }
+            DispatchQueue.main.async { [weak self] in self?.stopCapture(reason: reason) }
             return
         }
         guard ready, opening || streaming, manualStopGate.allowsStart else { return }
+        pendingStopReason = reason
         manualStopGate.requestStop()
         guard sendCloseCommand() else { return }
         finishAudio()
-        onStatus?("正在停止遥控器采音…")
+        onStatus?("\(reason)；正在关闭遥控器采音…")
         // An AUDIO_STOP after MIC_CLOSE cannot prove physical key release.
         // Its acknowledgement must disconnect, never permit another search.
         captureTimer = timer(after: 3) { [weak self] in
             guard let self, self.manualStopGate.awaitingStop else { return }
-            self.fail("遥控器未确认停止采音，请重新连接")
+            self.fail("\(reason)；遥控器未确认停止采音，请重新连接")
         }
     }
 
@@ -275,11 +281,12 @@ final class BluetoothService: NSObject {
             onStream?(true, codec.sampleRate)
         case .audioStop:
             if manualStopGate.receiveAudioStop() {
-                resetConnection(status: "已手动停止；重新连接后继续", cancel: true)
+                let reason = pendingStopReason ?? "采音已停止"
+                resetConnection(status: "\(reason)；重新连接后继续", cancel: true)
                 return
             }
             finishAudio()
-            if ready { onStatus?("采音结束；草稿等待检查") }
+            if ready { onStatus?("采音结束；遥控器仍已就绪") }
         case .audioSync(let codec, let sequence, let predictor, let stepIndex):
             guard ready, manualStopGate.allowsStart else { return }
             protocolHandler.applyAudioSync(codec: codec, sequence: sequence,
@@ -314,8 +321,10 @@ final class BluetoothService: NSObject {
         let watchdog = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.streaming else { return }
             let now = ProcessInfo.processInfo.systemUptime
-            if now - self.streamStartedAt >= 90 || now - self.lastAudioAt >= 8 {
-                self.stopCapture()
+            if now - self.streamStartedAt >= 90 {
+                self.stopCapture(reason: "采音达到 90 秒时限，已停止")
+            } else if now - self.lastAudioAt >= 8 {
+                self.stopCapture(reason: "连续 8 秒未收到有效音频，采音已停止")
             }
         }
         streamWatchdog = watchdog
@@ -329,7 +338,7 @@ final class BluetoothService: NSObject {
         let now = ProcessInfo.processInfo.systemUptime
         lastAudioAt = now
         onSamples?(frame.samples, codec.sampleRate)
-        // Recognition may synchronously fail and call stopCapture()/disconnect().
+        // A sample consumer may synchronously stop or disconnect the transport.
         guard ready, streaming, manualStopGate.allowsStart else { return }
         for sample in frame.samples {
             let value = Double(sample)
@@ -374,6 +383,7 @@ final class BluetoothService: NSObject {
         connectionTimer = nil
         ready = false
         manualStopGate = ManualStopGate()
+        pendingStopReason = nil
         finishAudio()
         let previous = peripheral
         peripheral = nil
