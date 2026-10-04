@@ -4,9 +4,29 @@
 
 [English](README.en.md) · [上手指南](docs/SETUP.md) · [完整按键约定](skills/vibe-remote/SKILL.md) · [MIT](LICENSE)
 
-Vibe Remote 是一个 Codex skill，包含语音工具配置指南、受状态约束的按键规划器，以及可执行的本机／SSH tmux 切窗工具。按住麦克风说话，松开保留草稿，检查目标和文字后再确认发送。
+Vibe Remote 正在开发为我们自己的 macOS 遥控器应用。首个原生版本直接连接小米遥控器，
+接收音频、转写为草稿，检查后显式复制使用。无需安装 MiRemote、SayAll 或 BlackHole。
+现有 Codex skill 和 tmux 工具继续保留。
 
-实体遥控器的按键和音频由独立桥接软件接收。此仓库不提供蓝牙驱动、后台按键监听器或常驻悬浮窗；安装 skill 后，遥控器不会自动接入 Codex。
+## 原生应用开发预览
+
+需要 macOS 13+ 和 Xcode Command Line Tools：
+
+```sh
+bash scripts/test_macos_core.sh
+bash scripts/build_macos_app.sh
+open "build/Vibe Remote.app"
+```
+
+点击连接与语音授权，按住遥控器语音键说话，松开等待草稿，检查后复制。
+默认本机语音识别；所选语言不支持时会提示，可自行选择允许 Apple 在线识别。
+音频和草稿不写入本地历史。退出前请复制需要保留的内容。
+
+[原生应用上手指南](docs/NATIVE-SETUP.md) · [设计说明](docs/NATIVE-DESIGN.md)
+
+这是本地构建的开发预览，尚未签名公证发布。真实遥控器、权限和音频识别仍需实机验收。
+首版使用 Apple Speech；豆包 / Typeless 虚拟麦克风、其他按键映射和 APP 自动操作是后续里程碑。
+下面的表格描述保留的 skill 能力，不代表原生应用已执行所有动作。
 
 ## 当前能力
 
@@ -21,7 +41,7 @@ Vibe Remote 是一个 Codex skill，包含语音工具配置指南、受状态�
 
 自动化检查覆盖配置、语音时序、发送保护、tmux 命令和安装器。蓝牙音频、实体按键及 GUI 操作需要单独实测，进度见 [TASKS.md](TASKS.md)。
 
-## 安装
+## 安装支持 skill
 
 需要 Git、Python 3.10 或更高版本，以及支持本地 skills 的 Codex。Python 工具仅使用标准库。
 
@@ -89,9 +109,9 @@ python3 -m unittest discover -s tests -v
 python3 skills/vibe-remote/scripts/vibe_remote.py validate skills/vibe-remote/assets/config.default.json
 ```
 
-GitHub Actions 在 Linux 和 macOS 上运行测试与模板校验。贡献前阅读 [PROJECT.md](PROJECT.md)、[MEMORY.md](MEMORY.md)、[TASKS.md](TASKS.md) 和 [WORKLOG.md](WORKLOG.md)，把新决策和实际验证结果写回记录。不要提交本地状态、凭据、录音或听写内容。
+GitHub Actions 检查原生应用构建，并在 Linux 和 macOS 上运行 Python 测试与模板校验。贡献前阅读 [PROJECT.md](PROJECT.md)、[MEMORY.md](MEMORY.md)、[TASKS.md](TASKS.md) 和 [WORKLOG.md](WORKLOG.md)，把新决策和实际验证结果写回记录。不要提交本地状态、凭据、录音或听写内容。
 
-桥接参考：[SayAll](https://github.com/HD838A/remote-mic-app)、[MiCoding](https://github.com/zhangtuansia/MiCoding)、[MiRemoteVoice](https://github.com/VincentKingHsu/MiRemoteVoice)。这些是独立项目，依各自许可与安装说明使用；本仓库未打包其源码或驱动。
+协议参考：[MiRemoteVoice](https://github.com/VincentKingHsu/MiRemoteVoice)。原生应用适配了其 MIT 协议代码，完整归属与许可见 [第三方声明](apps/macos/THIRD_PARTY_NOTICES.md)。本仓库不打包第三方应用或 BlackHole 衍生驱动。
 
 ## 许可
 

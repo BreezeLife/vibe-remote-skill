@@ -2,11 +2,34 @@
 
 [中文](README.md) · [Setup guide (中文)](docs/SETUP.md)
 
-A Codex skill for using Xiaomi Bluetooth Remote 2 Pro in voice coding workflows with Doubao, Typeless, Codex / ChatGPT apps, and terminal workspaces.
+A self-developed macOS app for Xiaomi Bluetooth Remote 2 Pro, with a supporting
+Codex skill for guarded workspace actions and terminal navigation.
 
-The package provides setup guidance, a configuration template, a guarded semantic event planner, and an exact-session tmux window selector for local or existing SSH sessions. A separate bridge receives remote audio and buttons. The skill does not install a microphone driver, listen for hardware events, inject GUI keys, or provide a background dispatcher. App operations require current UI observations and available computer-use tools.
+## Native developer preview
 
-## Install
+The native app receives remote ATVV audio directly, transcribes it through Apple
+Speech, and keeps an editable unsent draft for explicit copying. It requires macOS
+13+ and Xcode Command Line Tools, with no third-party app or virtual driver.
+
+```sh
+bash scripts/test_macos_core.sh
+bash scripts/build_macos_app.sh
+open "build/Vibe Remote.app"
+```
+
+On-device recognition is required by default. An explicit opt-in allows Apple's
+speech service when local recognition is unavailable. The app does not persist audio
+or transcript history. Copy any text you need before quitting.
+
+This locally signed developer preview still requires physical remote/permission
+acceptance. Doubao/Typeless virtual microphone output, general HID mapping and
+application execution adapters are future milestones. See the [native setup guide](docs/NATIVE-SETUP.md),
+[design](docs/NATIVE-DESIGN.md) and [third-party notices](apps/macos/THIRD_PARTY_NOTICES.md).
+
+The existing Python skill below remains separate: its planner returns semantic actions;
+only its explicitly bound local/SSH tmux selector executes window changes.
+
+## Install the supporting skill
 
 Requires Python 3.10+. Keep the checkout in a stable location; the installer creates a symlink and refuses to replace an existing unrelated skill.
 
@@ -22,8 +45,8 @@ The default destination is `${CODEX_HOME:-$HOME/.codex}/skills/vibe-remote`. Ins
 
 ```text
 $vibe-remote
-I have a Xiaomi Bluetooth Remote 2 Pro. Help me set up SayAll with
-Doubao for my current Codex app task. Inspect the installed tools and
+I have a Xiaomi Bluetooth Remote 2 Pro. Inspect the native app and
+current project status before configuring my Codex workflow. Inspect the tools and
 actual shortcuts, preserve my existing configuration, and verify remote
 audio and the visible task before enabling the workspace binding.
 Report what is configured, verified, and still pending.
@@ -49,4 +72,4 @@ python3 -m unittest discover -s tests -v
 
 Unit tests cover planner guards, provider lifecycles, tmux selection, and installer conflicts. Bluetooth audio, provider behavior, GUI switching, and physical integration require separate [acceptance checks](skills/vibe-remote/references/acceptance.md).
 
-[MIT License](LICENSE). Third-party bridges are separate projects with their own licenses and installation requirements.
+[MIT License](LICENSE). Adapted native protocol code retains upstream MIT notices in the source tree and app bundle. No third-party driver is bundled.

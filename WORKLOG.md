@@ -81,3 +81,85 @@ The run flagged the newly added checkout v4 dependency's deprecated Node 20 runt
 Updated the pinned checkout dependency to the official v6 revision using Node 24 and
 prepared this final status synchronization. No application behavior changed in this step.
 Remaining work is the physical acceptance sequence in TASKS.md and docs/SETUP.md.
+
+## 2026-10-03–04 — direct-use installation preparation
+
+The user requested immediate physical use rather than further project packaging. Re-read
+the four project records and Vibe Remote setup references. Confirmed this Mac is arm64,
+macOS 15.7, with DoubaoIme 0.5.7; SayAll and a compatible virtual audio input were still absent.
+The current Bluetooth diagnostic returned no candidate, so connection is unconfirmed.
+
+The official GitHub asset download timed out. Downloaded SayAll 1.9.21 from its official
+stable CDN entry https://download.sayall.app/mac instead. SHA256 matched the published
+GitHub asset: 1f174fae61f02b9e1984611d0ad9fecc6521891b0793ac25382029ff9e33aef8.
+Mounted the image read-only at /private/tmp/VibeRemote-SayAll-Mount. Its actual package
+filename is Install Remote Mic.pkg, despite newer upstream instructions using SayAll naming.
+pkgutil confirmed a trusted Developer ID Installer signature and Apple notarization;
+spctl accepted the installer as Notarized Developer ID.
+
+Native computer-use calls timed out, including opening Installer. No software, driver,
+permission, global input setting or workspace verification flag was changed. The prepared
+installer needs the user to run it and enter their administrator password in the macOS
+dialog. Next: grant expected bridge permissions, choose MiRemoteV 2ch in both tools,
+leave Fn tap simulation off for Doubao, and physically verify remote audio and unsent drafts.
+No conversation-history MCP setup is needed for this dictation path. Existing unrelated
+STATUS.md and .project-pulse/ files were preserved.
+
+## 2026-10-04 — self-developed macOS application
+
+The user explicitly changed the requirement to our own application, referencing
+MiRemote without using its app. Re-read the project records and researched the MIT
+MiRemoteVoice bridge at 2c374d9d65ed6c8b1af6a4f9aa1b6c0f8a039aaf, Google ATVV 1.0,
+and Apple's Speech APIs. The earlier external-bridge installation path is superseded.
+Recorded the native design/plan and kept the existing skill and repository history.
+
+Implemented apps/macos as a SwiftPM core library plus SwiftUI/AppKit application.
+The first native milestone connects directly to the remote through CoreBluetooth,
+negotiates ATVV only after both notification subscriptions succeed, decodes mono
+ADPCM, shows signal level, and feeds Apple Speech. It requires on-device recognition
+by default; the user may explicitly allow Apple's network speech service. No Mac
+microphone fallback, raw audio logging, transcript persistence, external application
+key injection or third-party virtual audio driver is included.
+
+The draft lifecycle preserves prior text, appends successive utterances, blocks editing
+while capturing/finalizing, and rejects late callbacks after cancellation. Release
+finishes recognition into a draft; copying is explicit. General HID mappings, target
+selection/execution and a native virtual microphone for Doubao/Typeless remain pending.
+
+Review found a cancellation edge: a held remote key can repeat START_SEARCH after a
+MIC_CLOSE acknowledgement. Manual stops now require a fresh connection; a pure stop
+gate and three sequence tests prevent resuming a cancelled segment. Natural physical
+release retains the connection. Also prevent reconnecting while the previous peripheral
+is retiring, and suppress level callbacks after synchronous recognition errors.
+
+Decoder verification exposed noncanonical upper entries in the reference ADPCM step
+table. A known high-index vector failed with [311, 595] instead of [312, 596]; corrected
+the full table against ATVVoice's standard IMA/DVI values. A separate expected-value
+mistake in the sync test was independently recalculated and corrected. Complete MIT
+attributions and notices ship in both source and app resources; no GPL driver is reused.
+
+This Mac has Swift 6.1.2 and Command Line Tools without XCTest. The initial Swift test
+attempt therefore could not load XCTest. Added a small standalone runner that executes
+the same test methods with swiftc; full-Xcode CI retains XCTest. Final local checks:
+25 protocol/draft/stop tests passed, 42 speech PCM/session assertions passed, 30 existing
+Python tests passed, neutral configuration validation passed, documentation links and
+shell syntax passed, and git diff --check passed. Native debug compilation passed.
+Speech checks use synthetic PCM and do not instantiate a recognizer or trigger TCC.
+
+A fresh doctor scan now finds SayAll 1.9.21 and MiRemoteV2ch.driver, which were absent in
+an earlier snapshot. Their installation was not observed in this development turn;
+no third-party installation or removal was performed as part of native development.
+The current scan still finds no Bluetooth candidate. No physical audio, Speech permission,
+local language-model availability, or native UI acceptance has been verified.
+
+Unrelated STATUS.md and .project-pulse/ remain preserved and excluded from this work.
+
+Release compilation succeeded. The first package signature check found FinderInfo
+metadata attached to the generated app in the iCloud-synced checkout. Updated the
+build script to remove only FinderInfo/ResourceFork from its generated app (not
+quarantine/provenance or source files). The rebuilt app passed Info.plist validation
+and codesign --verify --strict. Output: build/Vibe Remote.app, version 0.1.0, arm64,
+local ad-hoc signature; Developer ID/notarization and hardware acceptance remain pending.
+
+Launched the generated app with LaunchServices; its VibeRemote process remained running.
+This confirms process launch only, not a visually inspected UI or working hardware.

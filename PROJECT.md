@@ -1,38 +1,54 @@
-# Vibe Remote skill
+# Vibe Remote
 
-A Codex skill for Xiaomi Bluetooth Remote 2 Pro voice coding: provider-aware dictation,
-APP task binding, and native terminal or tmux window switching.
+Our own macOS application for Xiaomi Bluetooth Remote 2 Pro voice coding, with a
+supporting Codex skill for workspace bindings, guarded button intentions and tmux.
 
-The skill lives in skills/vibe-remote. A Bluetooth/audio bridge supplies hardware events.
-APP interaction uses freshly observed computer-use UI; the bundled Python helper selects
-only explicitly bound tmux windows, locally or through an existing SSH alias.
+The user changed direction on 2026-10-04: develop our own application, referencing
+MiRemote's technical approach without installing or using its application. The
+previous third-party bridge installation plan is superseded.
 
-Install with Python 3 using scripts/install_skill.py. The installer links the skill into
-the Codex skills directory and refuses to overwrite another skill. It installs no driver,
-input method, daemon, or SSH configuration.
+## Architecture and current scope
 
-Run tests with Python's unittest discovery in tests. Validate skill metadata with Codex's
-skill-creator quick_validate.py. Hardware and application checks are separate from unit tests.
+`apps/macos` is a SwiftPM project for macOS 13+. VibeRemoteCore owns ATVV packet
+parsing, IMA ADPCM decoding and in-memory draft lifecycle. The native executable
+uses CoreBluetooth to receive remote audio, Apple Speech to transcribe it, and
+SwiftUI to show connection, signal and editable drafts. Local speech recognition
+is required by default; Apple's online service requires an explicit opt-in.
 
-## Workflow and boundaries
+The first milestone is remote audio → transcription → review → explicit copy.
+It does not expose a virtual microphone to Doubao/Typeless or execute the remaining
+remote button mappings. Those are subsequent integration milestones, not implied
+by a successful build. No audio or transcripts are persisted by this application.
 
-The intended loop is: choose a workspace, hold to dictate, release into an unsent draft,
-inspect the destination and text, explicitly send, then read output or open a preview.
-APP adapters select registered tasks; CLI adapters select registered windows or panes.
-Browser focus does not redefine the bound AI destination.
+`skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
+Its planner returns semantic actions and never injects GUI keys. The exact-session
+tmux selector remains its only executable adapter. Installing the skill alone does
+not install or start the native application.
 
-Keep three layers separate: the bridge receives physical audio/buttons; this skill defines
-configuration and guarded semantic actions; an observed UI adapter or companion executes
-those actions. The Python planner never injects GUI keys. Only the tmux selector executes
-window selection, against an explicitly verified existing session.
+## Product principles
 
-## Repository and continuity
+The intended complete loop is: choose a workspace, hold to dictate, release into an
+unsent draft, inspect the destination and text, explicitly send, then read output or
+open a preview. Keep button intentions consistent across APP and CLI adapters.
+Browser focus must not redefine the bound AI destination. Unknown focus/recording
+state and shell prompts block automatic submission. The first native milestone uses
+explicit copying while these execution adapters are still absent.
 
-Canonical development checkout: Project-VibeRemote. The existing local Git history was
-recovered from ~/.codex/skill-projects/vibe-remote on 2026-10-02 without deleting the original.
-Public repository: https://github.com/BreezeLife/vibe-remote-skill (MIT), synchronized on main.
+Distinguish implemented behavior, installed artifacts, current connection state and
+physical acceptance. A paired device or saved UUID does not prove a working audio
+stream. Keep raw audio, transcripts, credentials and runtime device identifiers out
+of Git. Respect third-party licenses and ship required notices with adapted code.
 
-README.md and docs/SETUP.md are the user entry points; README.en.md provides an English
-introduction. TASKS.md contains current acceptance state; MEMORY.md stores durable choices,
-and WORKLOG.md records evidence chronologically. GitHub Actions checks Python 3.10/3.13 on
-Linux and macOS. Local config and runtime observations remain outside Git.
+## Build, tests and continuity
+
+Canonical checkout: Project-VibeRemote. The original recovery copy at
+~/.codex/skill-projects/vibe-remote is retained. Public repository:
+https://github.com/BreezeLife/vibe-remote-skill (MIT original code and MIT notices).
+
+Native design and build/use steps: docs/NATIVE-DESIGN.md and docs/NATIVE-SETUP.md.
+Run `bash scripts/test_macos_core.sh` and
+`bash scripts/build_macos_app.sh`. Existing skill checks use Python unittest discovery
+and the config validator. CI checks both native and Python paths.
+
+Read PROJECT.md, MEMORY.md, TASKS.md and WORKLOG.md before significant changes.
+TASKS.md records acceptance, MEMORY.md durable decisions, WORKLOG.md dated evidence.

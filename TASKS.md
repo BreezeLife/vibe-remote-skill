@@ -1,49 +1,66 @@
 # Tasks
 
-Updated: 2026-10-02 (Asia/Shanghai).
+Updated: 2026-10-04 (Asia/Shanghai).
 
-## Implemented and checked
+## Current direction: our own macOS app
 
-- [x] Define provider adapters, fixed intentions, APP task and CLI window contracts.
-- [x] Write config template, event planner, tmux selector, installer, and acceptance guide.
-- [x] Preserve the original local commits and recover the project into Project-VibeRemote.
-- [x] Recover the final request: publish publicly on GitHub and provide practical usage docs.
-- [x] Add Chinese/English README, setup guide, MIT license, and GitHub Actions checks.
-- [x] Fix unknown recording state permitting actions and repeated workspace-picker events.
-- [x] Verify 30 unit tests, skill metadata, neutral/local templates and the Bluetooth diagnostic.
-- [x] Update the installed skill link to the canonical checkout while retaining the old copy.
-- [x] Publish the public MIT repository and verify main synchronization and all four hosted checks.
+The user explicitly requested self-developed software, referencing MiRemote's approach
+without using its app. The earlier SayAll installation path is superseded. The current
+native application does not require a third-party application or driver. A later
+read-only check now finds SayAll and MiRemoteV2ch installed; their installation was
+not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
-Code-publication checks passed on Linux/macOS with Python 3.10/3.13:
-https://github.com/BreezeLife/vibe-remote-skill/actions/runs/36899566684.
-The local working tree is clean after the final status synchronization; local configuration
-remains ignored. The installed skill points to this project's source.
+Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
+Local artifact: build/Vibe Remote.app (0.1.0, arm64, local ad-hoc signature).
+Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
-## Observed environment
+## Native milestone 0.1
 
-Read-only inspection found the Xiaomi voice remote connected in macOS's Bluetooth inventory.
-This confirms Bluetooth connection only; audio and physical button behavior remain untested.
+- [x] Create a SwiftPM macOS 13+ app with a SwiftUI draft window and menu-bar entry.
+- [x] Implement direct ATVV discovery, subscription acknowledgement and capability negotiation.
+- [x] Decode remote 8/16 kHz IMA ADPCM, isolate stream synchronization and report signal level.
+- [x] Feed Apple Speech from remote PCM, require local recognition by default, make online
+  recognition opt-in, and bound finalization while ignoring stale callbacks.
+- [x] Preserve drafts, append subsequent utterances, cancel only the current utterance,
+  and provide explicit copying without key injection or automatic submission.
+- [x] Compile the complete native executable in debug mode on this Apple Silicon Mac.
+- [x] Pass 25 native core tests, 42 Speech PCM/session assertions and all 30 Python tests.
+- [x] Build the release .app and verify its local ad-hoc signature.
+- [ ] Synchronize this native milestone to GitHub.
+- [ ] Physically verify Bluetooth permission, pairing/ATVV readiness and real remote audio.
+- [ ] Physically verify language support, recognition permissions and two consecutive holds.
+- [ ] Physically verify cancellation/disconnection cleanup and explicit draft copying.
 
-| Dependency | Observed result |
-| --- | --- |
-| Codex | Installed, com.openai.codex, 26.928.31416 (app filename is ChatGPT.app) |
-| ChatGPT | Installed, com.openai.chat, 1.2026.160 (ChatGPT Classic.app) |
-| Doubao input method | Installed, com.bytedance.inputmethod.doubaoime, 0.5.7 |
-| Typeless / SayAll / MiCoding / MiRemoteVoice apps | Not found in the checked application locations or Spotlight |
-| MiRemote / BlackHole virtual audio input | Not found in HAL or the audio-device inventory |
-| tmux | Not found in PATH or common installation paths |
-| MiCoding source project | Present as iCloud placeholders; executable/build state not verified |
-| Privacy permissions and current AI input binding | Not observed |
+Hardware checks remain unchecked regardless of software build/test results. The current
+app does not capture the Mac microphone, expose a virtual input or intercept general
+HID keys. Other remote buttons may continue their normal macOS behavior.
 
-## Next physical acceptance
+## Subsequent integration work
 
-1. Install or locate a compatible bridge, then verify remote audio in its actual virtual input.
-2. Verify Doubao's shortcut and hold/release behavior; confirm release preserves an unsent draft.
-3. Bind the current Codex APP window/task/input and test exactly one OK submission.
-4. Verify task switching, preview return, cancellation and stopping the identified AI task.
-5. If using Typeless, verify its shortcut and paired-tap lifecycle separately.
-6. If using CLI windows, bind actual terminal panes; use tmux only after confirming an existing
-   session and local/SSH access. Verify the visible terminal after server-side switching.
+- [ ] Develop our own virtual microphone output to support Doubao / Typeless.
+- [ ] Observe real device HID events and implement the existing fixed button intentions.
+- [ ] Add an explicit workspace picker and observed APP/CLI target adapters.
+- [ ] Implement guarded insertion/submission only after verifying the actual AI input.
+- [ ] Add signed/notarized distribution and repeatable clean-machine acceptance.
 
-Do not mark these complete from unit tests, saved config or Bluetooth pairing alone.
+## Supporting skill — retained and verified
+
+- [x] Provider profiles, state-guarded planner and exact-session local/SSH tmux switching.
+- [x] Chinese/English docs, MIT publication, neutral configuration and skill installer.
+- [x] 30 Python unit tests and neutral template validation passed again on 2026-10-04.
+- [x] Installed skill symlink points to this canonical checkout; original recovery copy retained.
+
+The Python planner still reports executes:false. Saved bindings do not establish current
+focus or recording state. Shell/unknown destinations cannot be submitted to.
+
+## Local environment and preservation
+
+This Mac has macOS 15.7 / arm64, Swift 6.1.2 and Xcode Command Line Tools, without XCTest.
+A standalone test script exercises the same core tests; full Xcode CI uses XCTest too.
+The latest doctor scan finds Codex 26.930.21537, Doubao 0.5.7, SayAll 1.9.21 and
+MiRemoteV2ch.driver. It still finds no Bluetooth candidate, so current remote connectivity
+is unconfirmed. No native-app audio/TCC acceptance has been observed. Quit any other
+remote bridge before physically testing this app to avoid competing BLE clients.
+
+Local config remains ignored. Preserve unrelated untracked STATUS.md and .project-pulse/.

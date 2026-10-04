@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+    <key>CFBundleExecutable</key><string>VibeRemote</string>
+    <key>CFBundleIdentifier</key><string>io.github.BreezeLife.VibeRemote</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>Vibe Remote</string>
+    <key>CFBundleDisplayName</key><string>Vibe Remote</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Vibe Remote 直接连接你的小米蓝牙遥控器，以接收语音键事件和遥控器音频。</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Vibe Remote 直接连接你的小米蓝牙遥控器，以接收语音键事件和遥控器音频。</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>把遥控器音频转换为可审阅的草稿。默认仅本机识别；仅当你选择允许在线识别时，音频才可能由 Apple 语音服务处理。</string>
+</dict>
+</plist>
