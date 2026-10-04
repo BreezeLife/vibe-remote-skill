@@ -28,7 +28,7 @@ delivers ATVV PCM to Apple Speech; a small draft state machine owns unsent text.
 - [x] Verify: `bash scripts/test_macos_core.sh`,
   `bash scripts/test_macos_speech.sh`, `bash scripts/build_macos_app.sh`, Python unittest discovery and template
   validation, `git diff --check`. Inspect the generated bundle and launch if possible.
-- [ ] Record: update PROJECT/MEMORY/TASKS/WORKLOG and entry guides with implemented
+- [x] Record: update PROJECT/MEMORY/TASKS/WORKLOG and entry guides with implemented
   vs physically verified behavior. Commit only related source/docs, push to the
   authorized public repository, and inspect hosted checks.
 

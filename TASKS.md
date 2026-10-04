@@ -27,7 +27,7 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 - [x] Compile the complete native executable in debug mode on this Apple Silicon Mac.
 - [x] Pass 25 native core tests, 42 Speech PCM/session assertions and all 30 Python tests.
 - [x] Build the release .app and verify its local ad-hoc signature.
-- [ ] Synchronize this native milestone to GitHub.
+- [x] Synchronize native milestone commit 2960169 to public GitHub main.
 - [ ] Physically verify Bluetooth permission, pairing/ATVV readiness and real remote audio.
 - [ ] Physically verify language support, recognition permissions and two consecutive holds.
 - [ ] Physically verify cancellation/disconnection cleanup and explicit draft copying.

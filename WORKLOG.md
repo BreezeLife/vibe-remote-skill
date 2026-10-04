@@ -163,3 +163,9 @@ local ad-hoc signature; Developer ID/notarization and hardware acceptance remain
 
 Launched the generated app with LaunchServices; its VibeRemote process remained running.
 This confirms process launch only, not a visually inspected UI or working hardware.
+
+Published native milestone commit 296016984feb7f05ebf07667140f22f3a90c9a44 to
+GitHub main with a non-forced push after confirming the remote was still 3fdd8e8.
+This checkout lacked a Git author setting, so the commit used the latest repository
+author identity via per-command options; no global Git configuration was changed.
+Native and Python hosted checks are available in the repository's Actions page.
