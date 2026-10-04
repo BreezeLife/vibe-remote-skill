@@ -8,11 +8,20 @@ fi
 
 VIBE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VIBE_PACKAGE="$VIBE_ROOT/apps/macos"
-VIBE_APP="$VIBE_ROOT/build/Vibe Remote.app"
+# File Provider/iCloud can reattach FinderInfo after signing. Keep the running
+# bundle outside a cloud-synced checkout; CI may choose a temporary output folder.
+VIBE_OUTPUT_DIR="${VIBE_OUTPUT_DIR:-$HOME/Applications}"
+VIBE_APP="$VIBE_OUTPUT_DIR/Vibe Remote.app"
+VIBE_BUILD_MARKER="$VIBE_APP/Contents/Resources/.vibe-remote-build"
+if [[ -L "$VIBE_APP" ]] || { [[ -e "$VIBE_APP" ]] && [[ ! -f "$VIBE_BUILD_MARKER" ]]; }; then
+    echo "Refusing to overwrite an existing app not produced by this build script: $VIBE_APP" >&2
+    exit 1
+fi
 
 swift build --package-path "$VIBE_PACKAGE" --configuration release --disable-sandbox
 VIBE_BIN="$(swift build --package-path "$VIBE_PACKAGE" --configuration release --show-bin-path --disable-sandbox)"
 mkdir -p "$VIBE_APP/Contents/MacOS" "$VIBE_APP/Contents/Resources"
+printf 'Vibe Remote local build\n' > "$VIBE_BUILD_MARKER"
 install -m 755 "$VIBE_BIN/VibeRemote" "$VIBE_APP/Contents/MacOS/VibeRemote"
 cp "$VIBE_PACKAGE/Packaging/Info.plist" "$VIBE_APP/Contents/Info.plist"
 cp "$VIBE_ROOT/LICENSE" "$VIBE_APP/Contents/Resources/LICENSE.txt"

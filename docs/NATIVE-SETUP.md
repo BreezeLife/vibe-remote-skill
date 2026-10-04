@@ -12,10 +12,13 @@
 bash scripts/test_macos_core.sh
 bash scripts/test_macos_speech.sh
 bash scripts/build_macos_app.sh
-open "build/Vibe Remote.app"
+open "$HOME/Applications/Vibe Remote.app"
 ```
 
-产物是本机架构的 `.app`，使用本地 ad-hoc 签名，尚未 Developer ID 签名或公证。
+脚本将本机架构的 `.app` 构建到 `~/Applications/Vibe Remote.app`，使用本地 ad-hoc 签名，
+尚未 Developer ID 签名或公证。构建器只更新带有自身构建标记的产物；已有其他同名应用
+会被保留并报错。可用 `VIBE_OUTPUT_DIR` 指定输出目录，请选择不受 iCloud 同步的位置。
+iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不应在同步目录运行 `.app`。
 构建不安装驱动、不修改系统音频设备、不申请辅助功能权限。为保证隐私权限关联稳定，
 请从同一目录启动同一份 app；重编译后 macOS 可能需要重新授权。不要直接 `swift run`
 来做权限验收，完整 app bundle 才包含用途说明和稳定的 bundle ID。

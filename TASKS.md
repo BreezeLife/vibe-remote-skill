@@ -12,7 +12,7 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Local artifact: build/Vibe Remote.app (0.1.0, arm64, local ad-hoc signature).
+Local artifact: ~/Applications/Vibe Remote.app (0.1.0, arm64, local ad-hoc signature).
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## Native milestone 0.1
@@ -28,6 +28,9 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 - [x] Pass 25 native core tests, 42 Speech PCM/session assertions and all 30 Python tests.
 - [x] Build the release .app and verify its local ad-hoc signature.
 - [x] Synchronize native milestone commit 2960169 to public GitHub main.
+- [x] Pass the native app and all four Python hosted jobs for that implementation:
+  https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37212405473.
+- [x] Verify the local ~/Applications bundle signature and refusal to overwrite unrelated apps.
 - [ ] Physically verify Bluetooth permission, pairing/ATVV readiness and real remote audio.
 - [ ] Physically verify language support, recognition permissions and two consecutive holds.
 - [ ] Physically verify cancellation/disconnection cleanup and explicit draft copying.

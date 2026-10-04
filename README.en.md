@@ -14,7 +14,7 @@ Speech, and keeps an editable unsent draft for explicit copying. It requires mac
 ```sh
 bash scripts/test_macos_core.sh
 bash scripts/build_macos_app.sh
-open "build/Vibe Remote.app"
+open "$HOME/Applications/Vibe Remote.app"
 ```
 
 On-device recognition is required by default. An explicit opt-in allows Apple's

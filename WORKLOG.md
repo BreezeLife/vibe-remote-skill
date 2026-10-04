@@ -169,3 +169,17 @@ GitHub main with a non-forced push after confirming the remote was still 3fdd8e8
 This checkout lacked a Git author setting, so the commit used the latest repository
 author identity via per-command options; no global Git configuration was changed.
 Native and Python hosted checks are available in the repository's Actions page.
+
+Post-launch re-verification found iCloud had reattached FinderInfo, invalidating the
+workspace app signature again. Corrected the build's default destination to the local
+~/Applications/Vibe Remote.app; an explicit VIBE_OUTPUT_DIR supports CI/temp output.
+A build marker prevents replacing unrelated existing apps and symlink destinations are
+rejected. The workspace process is preserved to avoid interrupting any unsaved draft.
+The previous workspace bundle is a superseded build artifact, not the recommended launch
+location. This output-location correction does not change Bluetooth or recognition code.
+
+The ~/Applications bundle built successfully and passed strict signature verification
+again after packaging. A synthetic unrelated-app fixture was preserved byte-for-byte
+and the build refused it before compiling. The implementation commit's hosted native
+job (XCTest, standalone core checks, Speech checks, release packaging) and four Python
+jobs all passed: https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37212405473.
