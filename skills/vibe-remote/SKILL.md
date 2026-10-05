@@ -1,6 +1,6 @@
 ---
 name: vibe-remote
-description: Configure Xiaomi Bluetooth Remote 2 Pro for voice coding with Doubao, Typeless, or another dictation tool. Bind and switch Codex or ChatGPT APP tasks, native terminal tabs, and local or SSH tmux windows. Use when the user asks for remote button mappings, dictation setup, voice coding, APP task switching, CLI window switching, or troubleshooting these workflows.
+description: Configure the self-developed macOS Vibe Remote app for Xiaomi remote dictation, visual button mappings and Codex, Claude or WorkBuddy desktop workspaces. Also supports legacy dictation-provider guidance and exact local or SSH tmux selection. Use for setup, button configuration, voice coding, workspace switching or troubleshooting.
 ---
 
 # Vibe Remote
@@ -12,10 +12,14 @@ Keep the speech draft, visible target, and explicit submission separate.
 
 This skill provides setup guidance, a neutral configuration template, an event planner,
 and a working tmux window selector. It is not a Bluetooth/HID/audio driver or a background
-button listener. A bridge such as SayAll or MiRemoteVoice must receive remote audio and keys.
-APP operations use available computer-use tools and freshly observed UI controls.
-A permanent overlay, software pointer, and automatic key-to-agent dispatcher require a
-companion application; do not describe them as installed features of this skill.
+button listener. The repository's separately built macOS Vibe Remote app now owns direct
+ATVV audio and, in 0.2, visual button configuration, device-scoped HID calibration and
+AX desktop adapters for Codex, Claude Desktop, both WorkBuddy identities and custom apps.
+See the repository's docs/NATIVE-SETUP.md. Installing this skill alone does not install the app.
+The user's native-app path requires no SayAll/MiRemote bridge; do not install one implicitly.
+Native presets do not prove physical input, focus, insertion, send or stop acceptance.
+A virtual microphone, software pointer and native CLI runtime adapter remain future work.
+APP operations through this skill use available computer-use tools and freshly observed controls.
 
 ## Start with the requested path
 
@@ -84,7 +88,8 @@ target_id, target_confirmed, context (ai_input / selection / output / shell / un
 runtime (ready / draft / running / unknown), recording, has_draft,
 ai_process_confirmed, selection_confirmed, and repeated. Values must come from current runtime/UI
 observations; a saved config is not evidence of current focus or readiness.
-An eventual companion dispatcher must serialize events and deduplicate consumed gestures;
+The native dispatcher serializes actions and deduplicates calibrated gestures;
+other companion dispatchers must supply the same protections;
 the stateless planner cannot supply event history. Mark repeat emissions with repeated=true.
 
 ```sh

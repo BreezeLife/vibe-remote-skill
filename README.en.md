@@ -8,7 +8,8 @@ Codex skill for guarded workspace actions and terminal navigation.
 ## Native developer preview
 
 The native app receives remote ATVV audio directly, transcribes it through Apple
-Speech, and keeps an editable unsent draft for explicit copying. It requires macOS
+Speech, and keeps separate editable drafts per workspace. Version 0.2 adds visual button
+configuration, calibrated HID capture and guarded desktop tool actions. It requires macOS
 13+ and Xcode Command Line Tools, with no third-party app or virtual driver.
 
 ```sh
@@ -22,8 +23,10 @@ speech service when local recognition is unavailable. The app does not persist a
 or transcript history. Copy any text you need before quitting.
 
 This locally signed developer preview still requires physical remote/permission
-acceptance. Doubao/Typeless virtual microphone output, general HID mapping and
-application execution adapters are future milestones. See the [native setup guide](docs/NATIVE-SETUP.md),
+acceptance. Presets cover Codex, Claude Desktop, both WorkBuddy bundle identities and
+custom apps. Live AX metadata must establish the target and supported input/send/stop
+controls; unavailable capabilities stay blocked. Doubao/Typeless virtual microphone output
+and native CLI runtime adapters remain future work. See the [native setup guide](docs/NATIVE-SETUP.md),
 [design](docs/NATIVE-DESIGN.md) and [third-party notices](apps/macos/THIRD_PARTY_NOTICES.md).
 
 The existing Python skill below remains separate: its planner returns semantic actions;

@@ -310,3 +310,51 @@ remapping so raw system key leakage cannot bypass action checks. Asked the user 
 desktop or CLI delivery should come first; desktop-first remains a stated proposal.
 No implementation or new installer is claimed. Design approval and physical acceptance
 remain pending. Existing local configuration, drafts and unrelated files are preserved.
+
+
+## 2026-10-05 16:32 (Asia/Shanghai) — implement visual controls 0.2
+
+Following the user's “继续实现吧” approval, implemented the desktop-first design on
+codex/visual-controls. Added strict versioned native settings, semantic button/gesture
+mappings, physical-device HID learning/exclusive capture, workspace-owned memory drafts,
+AX tool bindings and original SwiftUI pages for dictation, buttons, tools and permissions.
+ATVV and Speech implementations are unchanged; mic retains its dedicated voice behavior.
+Codex, Claude Desktop and both installed WorkBuddy identities have presets; a preset
+establishes discovery only. Custom apps, semantic shortcut learning, explicit Codex thread
+opening and unsent new-draft prefilling are included. Native CLI and virtual mic remain
+future work. No third-party application source or artwork was copied.
+
+The coordinator invalidates gestures and pending tool operations on capture, draft, target,
+permission or device changes. Calibration/inspection cannot dispatch actions. Send requires
+exclusive capture plus session acknowledgement, an explicitly inserted draft, a full-text
+review and fresh target/task/input/send/stop evidence. Runtime checks run again before every
+mutation. Imported configuration executes nothing and preserves existing draft owners.
+Unknown stop state, stale controls, app changes, shell targets and incomplete AX trees fail
+closed. Reviews found and fixed editing-mode timer dispatch, async operation invalidation,
+Optional.none gesture editing, stale stop identity and uppercase descriptor matching.
+Independent final spec and quality reviews report no remaining implementation blockers.
+
+Passed local checks: 47 core tests; 42 Speech assertions; 17 voice-model scenarios /
+126 assertions; 48 fake HID assertions; 144 fake AX assertions; 15 settings assertions;
+41 controller scenarios / 124 assertions; 30 Python tests; neutral config validation;
+shell/plist syntax and git diff --check. The uppercase-hash regression first failed, then
+passed after normalization. Full debug and release builds succeeded. Added HID, tool,
+storage and controller suites to hosted CI. Actual hosted results are recorded separately.
+
+Opened an isolated preview with a temporary bundle ID and observed the 0.2 initial native
+window/sidebar. Native UI automation disconnected before interactive page inspection;
+offscreen render output was not accepted as visual verification. The temporary preview
+was closed. The installed 0.1.1 app remains running because its current window contains a
+new in-memory draft. No draft text was written into project records. No TCC grants changed,
+no HID interface was seized and no AI message was submitted. Passive HID inventory found
+no matching current interface. Raw-key suppression, ATVV coexistence and actual per-tool
+capabilities still need physical acceptance and are not claimed by synthetic tests.
+
+Built ~/Downloads/VibeRemote-0.2.0-20261005-163035/VibeRemote-0.2.0-arm64.pkg
+(661,083 bytes), version 0.2.0 / build 3, macOS 13+ / arm64. Release signature, expanded
+payload signature, current-user-only installation domain and independent SHA-256 sidecar
+verification passed. SHA-256:
+6bd9fa5806236ed07109f8316ab00c73def4c232e53cd2f802c8403341cc0aa3.
+The installer remains unsigned/unnotarized and contains an ad-hoc-signed app. Earlier
+packages and the installed app were preserved; 0.2 has not been installed over the draft.
+Unrelated STATUS.md and .project-pulse/ remain untracked and untouched.

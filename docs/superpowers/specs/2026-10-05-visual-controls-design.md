@@ -1,13 +1,13 @@
 # Vibe Remote 0.2 — 可视化按键与编程工具
 
-状态：待用户确认的设计稿；尚未实现。2026-10-05，Asia/Shanghai。
+状态：用户于 2026-10-05 确认桌面优先方案，开始实施。Asia/Shanghai。
 
 ## 目标与范围
 
 用户要求参考 SayAll，在我们的原生应用中配置遥控器按键，并支持 Codex、Claude、
 WorkBuddy 等编程工具。保留当前 ATVV → Apple Speech → 内存草稿链路。
 
-暂按桌面应用优先设计。终端 CLI 保留独立适配接口，现有 Python/tmux helper 继续使用；
+按已确认的桌面应用优先方案实施。终端 CLI 保留独立适配接口，现有 Python/tmux helper 继续使用；
 首版不把普通终端窗口当成可安全发送的 AI 输入。若用户选择桌面与 CLI 同时交付，
 需要把精确 pane/session、AI 进程及输入状态观测加入同一验收范围。
 
@@ -155,4 +155,4 @@ App：HID 服务、配置存储、工具适配/AX 观测、动作协调器、Swi
   [Claude 桌面入口](https://support.claude.com/en/articles/12626668-use-quick-entry-with-claude-desktop-on-mac)、
   [WorkBuddy 设置](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Setting)。
 
-待用户确认：桌面优先的交付顺序，以及按上述统一意图/逐项验证方式实现 0.2。
+用户已确认：桌面优先，按上述统一意图/逐项验证方式实现 0.2。

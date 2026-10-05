@@ -81,3 +81,26 @@
   the ignored build/packages directory. Label the actual native architecture and minimum OS.
 - This development package contains an ad-hoc-signed app; the installer itself is unsigned
   and unnotarized. Do not describe it as Developer ID signed or clean-machine accepted.
+
+## 2026-10-05 — visual controls and coding tools
+
+- User approved the desktop-first 0.2 design with “继续实现吧”. Keep CLI as a separate
+  exact-session adapter; do not treat a desktop terminal as a verified AI input.
+- Independently implement SayAll-inspired interactions; do not copy its GPL client
+  or proprietary assets into this MIT project.
+- Native settings use `vibe-remote-native` schema 1 at Application Support/Vibe Remote,
+  separate from Python settings. Keep validated backups; imports execute nothing and
+  preserve existing workspace/draft ownership. Never persist drafts or runtime HID IDs.
+- Device discovery is explicit and uses independent IOHID handles. Device-specific
+  exclusive control must succeed across the selected device interfaces; missing physical
+  identity/descriptor blocks seizure. Observation never authorizes mapped execution.
+- User verifies raw-key suppression and ATVV coexistence for each captured connection.
+  Losing device/permission or changing configuration cancels pending gestures and reviews.
+- Drafts belong to individual workspace UUIDs, including a separate unbound draft.
+  Capture/finalization locks selection. Learning a different target requires an empty
+  draft and unchanged workspace both before and after the learning countdown.
+- Live AX checks verify process, version, window, active content task anchor, input and
+  semantic controls. Send needs exact full-text review; stop needs observed running state.
+  Saved shortcuts are semantic implementations only, never a bypass for missing state.
+- Explicit Codex thread navigation and new-draft prefilling are independent actions;
+  neither substitutes for missing bindings nor sends automatically.

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RemoteView: View {
     @ObservedObject var model: RemoteModel
+    var editsLocked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -12,7 +13,7 @@ struct RemoteView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("开发预览 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1")")
+                Text("开发预览 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")")
                     .font(.caption.weight(.medium)).padding(.horizontal, 10).padding(.vertical, 5)
                     .background(.quaternary, in: Capsule())
             }
@@ -24,7 +25,7 @@ struct RemoteView: View {
                             .foregroundStyle(model.ready ? Color.green : Color.secondary)
                         Text(model.connectionStatus).font(.callout)
                         Spacer()
-                        Button("连接遥控器", action: model.connect).disabled(model.isBusy)
+                        Button("连接遥控器", action: model.connect).disabled(model.isBusy || editsLocked)
                         Button("断开", action: model.disconnect)
                     }
                     HStack(spacing: 12) {
@@ -52,9 +53,9 @@ struct RemoteView: View {
                     Picker("识别语言", selection: $model.localeIdentifier) {
                         Text("普通话").tag("zh-CN")
                         Text("English (US)").tag("en-US")
-                    }.frame(width: 220).disabled(model.isBusy)
+                    }.frame(width: 220).disabled(model.isBusy || editsLocked)
                     Toggle("允许 Apple 在线识别", isOn: $model.allowServerRecognition)
-                        .disabled(model.isBusy)
+                        .disabled(model.isBusy || editsLocked)
                     Text(model.allowServerRecognition
                          ? "已允许音频交给 Apple 语音服务处理。"
                          : "默认仅本机识别；缺少语言支持时会提示。")
@@ -80,7 +81,7 @@ struct RemoteView: View {
                     .padding(10)
                     .background(.background, in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
-                    .disabled(model.isBusy)
+                    .disabled(model.isBusy || editsLocked)
                     .accessibilityLabel("听写草稿")
                     .frame(minHeight: 150)
             }
@@ -100,7 +101,7 @@ struct RemoteView: View {
                         .buttonStyle(.borderedProminent).disabled(!model.canCopy)
                 }
             }.frame(minHeight: 44)
-            Text("首版直接连接小米遥控器，使用 macOS 语音识别。豆包虚拟麦克风与其他按键映射仍在开发计划中。")
+            Text("草稿按工作区分别保留。使用顶部按钮插入和预览发送；语音键不会自动发送。")
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .padding(28)

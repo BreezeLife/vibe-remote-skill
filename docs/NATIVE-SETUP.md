@@ -1,8 +1,8 @@
 # 使用自研 Vibe Remote
 
 这是我们自己的 macOS 开发预览版，直接通过蓝牙读取小米遥控器的 ATVV 音频。
-不需要安装 MiRemote、SayAll、BlackHole 或其他桥接应用。首版使用 Apple 语音识别，
-豆包 / Typeless 的虚拟麦克风以及通用遥控器按键映射尚未实现。
+不需要安装 MiRemote、SayAll、BlackHole 或其他桥接应用。0.2 使用 Apple 语音识别，
+新增可视化按键配置、工作区草稿和编程工具适配。豆包 / Typeless 虚拟麦克风尚未实现。
 
 ## 安装包
 
@@ -10,7 +10,7 @@
 先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
 Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
 
-本次生成的是 **0.1.1 / Apple Silicon（arm64）/ macOS 13+** 开发包。
+本次生成的是 **0.2.0 / Apple Silicon（arm64）/ macOS 13+** 开发包。
 应用使用本地 ad-hoc 签名，安装包尚未 Developer ID 签名或 Apple 公证。
 安装不自动授予蓝牙或语音识别权限，也不安装其他桥接程序或驱动。
 
@@ -24,7 +24,7 @@ bash scripts/package_macos_app.sh
 
 ```sh
 VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
-installer -pkg "$HOME/Downloads/VibeRemote-0.1.1-arm64.pkg" -target CurrentUserHomeDirectory
+installer -pkg "$HOME/Downloads/VibeRemote-0.2.0-arm64.pkg" -target CurrentUserHomeDirectory
 open "$HOME/Applications/Vibe Remote.app"
 ```
 
@@ -41,6 +41,10 @@ open "$HOME/Applications/Vibe Remote.app"
 bash scripts/test_macos_core.sh
 bash scripts/test_macos_speech.sh
 bash scripts/test_macos_model.sh
+bash scripts/test_macos_hid.sh
+bash scripts/test_macos_tools.sh
+bash scripts/test_macos_controls.sh
+bash scripts/test_macos_integration.sh
 bash scripts/build_macos_app.sh
 open "$HOME/Applications/Vibe Remote.app"
 ```
@@ -69,6 +73,46 @@ iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不�
 **允许 Apple 在线识别** 后重试；在线模式允许音频交给 Apple 语音服务。应用不保存录音
 或转写历史，草稿只在内存中，退出前请复制需要保留的文字。
 
+## 配置按键
+
+1. 进入 **连接与权限**，明确授权输入监控，点击 **发现设备** 并选择本次遥控器。
+2. 点击 **独占接管并校准**。设备身份或报告描述符不完整、相关接口被占用时保持停用。
+   **开始观察** 只用于诊断，不阻止系统接收原始按键。
+3. 进入 **按键**，点击遥控器示意图的一个键，再点 **学习此键**，按住约 1 秒后松开。
+   单击、600 ms 长按和可选 300 ms 双击可分别配置。语音键保持 ATVV 专用。
+   未锁定选择时，按键页只高亮/选择；锁定或离开此页后才执行已启用的动作。
+4. 在本次独占连接中验证确认键不穿透为系统回车、音量不重复，语音键仍可收音。
+   返回连接页确认验收并点击 **启用已配置动作**。重连、休眠或撤权后需要重新验证。
+5. 电源打开工作区选择、菜单打开动作菜单；方向键移动选择，OK 确认，返回关闭。
+   菜单中的控制优先于普通工具动作。菜单栏可随时暂停并释放设备。
+
+原生配置存于 `~/Library/Application Support/Vibe Remote/settings.json`，与 Python 配置
+格式不同。导出、复制配置不含草稿；导入先校验，已有工作区会保留，发生 ID 冲突的不同
+目标分配新 ID，避免旧草稿被分配到新目标。上一份有效配置保存在 `settings.previous.json`。
+
+## 绑定 Codex、Claude、WorkBuddy
+
+1. 在 **编程工具** 为已安装应用添加工作区；两个 WorkBuddy 按 Bundle ID 分开。
+   也可选择本机其他 `.app`。安装存在仅表示可尝试绑定，不代表输入或发送已通过。
+2. 授权辅助功能，选择工作区。点击 **学习输入框** 后在 5 秒内切到工具并点击 AI 输入。
+3. 点击 **学习会话标题** 后，把鼠标停在同一窗口主内容区当前任务的独有标题上。
+   侧栏中仍存在的旧会话名、隐藏控件、普通 shell、无法唯一定位的元素会被拒绝。
+4. 点击 **测试聚焦**。回到听写页生成或编辑草稿，点 **插入草稿**。应用保留目标已有文字，
+   通过 AX 写入并读回核对；不支持 AX 写入时请显式复制后手动使用。
+5. 分别学习真实的 **发送** 和 **停止生成** 控件。停止控件可能仅在任务运行时出现。
+   要发送，先插入当前草稿，再点 **预览发送**；检查显示的目标和完整内容后确认。
+   文字、目标、设备授权或录音状态变化都会取消确认。没有明确控件/状态时不执行。
+6. **停止当前任务** 只操作已识别且正在生成的绑定任务。触发操作后若结果未观察到，会明确
+   提示检查，不能据此认定已完成，也不会自动重试发送或停止。
+
+每个工作区及“未绑定草稿”分别保存内存文字，切换不会搬移草稿；收音和识别整理期间锁定目标。
+应用升级后旧 AX 绑定失效，需要重新学习。快捷键是已知动作的可选实现；发送和停止还要求
+控件公开与配置一致的快捷键，缺少证据时请恢复默认 AX 方式。录制期间暂停遥控器映射。
+
+Codex 可配置 `codex://threads/<id>` 并显式打开；**在 Codex 预填新草稿** 是独立操作，
+使用官方 `codex://new`，不会自动发送或替换原工作区绑定。
+CLI、截图附件和指针功能不属于本版已实现的原生动作。
+
 ## 操作边界
 
 - 松开语音键会结束音频，等待最终识别；不会向任何应用自动发送。
@@ -80,8 +124,9 @@ iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不�
   同一次按住期间不会自动重启识别，也不会自动切换为在线识别。
 - 收音或等待识别期间，编辑和复制暂时停用，避免后续结果覆盖手工修改。
 - 断连会结束收音；如果没有最终结果，会保留收到的部分文字并提示。可检查后手动修订。
-- 本版只消费 ATVV 语音控制。其他遥控器按键没有由本应用接管，仍可能触发 macOS 默认行为。
-- 本版没有工作区自动切换、粘贴或发送动作，也不暴露豆包可选择的虚拟麦克风。
+- 按键映射默认暂停；观察模式仍可能触发原始 macOS 按键。只有完整独占并验证后才启用映射。
+- 工具操作需要辅助功能、具体工作区绑定和当次检查，不盲目粘贴或按 Enter。
+- 本版不暴露豆包可选择的虚拟麦克风，也不向普通终端发送或注入 Ctrl+C。
 
 ## 排障与验收
 
@@ -93,7 +138,7 @@ iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不�
 系统设置 → 隐私与安全性 → 蓝牙 / 语音识别允许 Vibe Remote，再重试或重开 app。
 
 一按语音键就显示「已手动停止」：0.1.0 会把识别启动失败误当作手动停止，主动断连。
-请更新到窗口右上角标明 **0.1.1** 的版本，并确保只有一份 Vibe Remote 在运行。
+请更新到窗口右上角标明 **0.1.1 或更高** 的版本，并确保只有一份 Vibe Remote 在运行。
 新版会展示识别错误，便于区分权限、语言支持和音频问题。主动点击取消/结束仍需重连；
 连续 8 秒未收到有效音频或单段达到 90 秒也会停止，但会明确显示超时原因。
 

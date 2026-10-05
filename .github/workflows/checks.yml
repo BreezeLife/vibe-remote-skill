@@ -43,6 +43,14 @@ jobs:
         run: bash scripts/test_macos_speech.sh
       - name: Voice-key integration regressions
         run: bash scripts/test_macos_model.sh
+      - name: Device input lifecycle checks
+        run: bash scripts/test_macos_hid.sh
+      - name: Guarded tool adapter checks
+        run: bash scripts/test_macos_tools.sh
+      - name: Native settings persistence checks
+        run: bash scripts/test_macos_controls.sh
+      - name: Native controls integration checks
+        run: bash scripts/test_macos_integration.sh
       - name: Build and verify app bundle
         env:
           VIBE_OUTPUT_DIR: ${{ runner.temp }}/vibe-remote-build

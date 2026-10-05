@@ -15,10 +15,13 @@ uses CoreBluetooth to receive remote audio, Apple Speech to transcribe it, and
 SwiftUI to show connection, signal and editable drafts. Local speech recognition
 is required by default; Apple's online service requires an explicit opt-in.
 
-The first milestone is remote audio → transcription → review → explicit copy.
-It does not expose a virtual microphone to Doubao/Typeless or execute the remaining
-remote button mappings. Those are subsequent integration milestones, not implied
-by a successful build. No audio or transcripts are persisted by this application.
+Version 0.2 extends remote audio → transcription → review with visual button settings,
+calibrated device-specific HID input, per-workspace in-memory drafts and guarded desktop
+tool adapters. Presets identify Codex, Claude Desktop and two WorkBuddy applications;
+custom .app bindings are also supported. Input learning and exclusive suppression must
+be verified on the actual remote; AX focus/input/send/stop capabilities require usable
+live app metadata. A preset or build does not establish physical or tool acceptance.
+No audio or transcripts are persisted. Doubao/Typeless virtual microphone remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
 Its planner returns semantic actions and never injects GUI keys. The exact-session
@@ -31,8 +34,9 @@ The intended complete loop is: choose a workspace, hold to dictate, release into
 unsent draft, inspect the destination and text, explicitly send, then read output or
 open a preview. Keep button intentions consistent across APP and CLI adapters.
 Browser focus must not redefine the bound AI destination. Unknown focus/recording
-state and shell prompts block automatic submission. The first native milestone uses
-explicit copying while these execution adapters are still absent.
+state and shell prompts block automatic submission. The native app requires
+explicit insertion and full-text send confirmation, plus live workspace and device checks.
+Unsupported AX capabilities preserve the draft for explicit manual copying.
 
 Distinguish implemented behavior, installed artifacts, current connection state and
 physical acceptance. A paired device or saved UUID does not prove a working audio
@@ -47,7 +51,9 @@ https://github.com/BreezeLife/vibe-remote-skill (MIT original code and MIT notic
 
 Native design and build/use steps: docs/NATIVE-DESIGN.md and docs/NATIVE-SETUP.md.
 Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
-`bash scripts/test_macos_model.sh` and `bash scripts/build_macos_app.sh`.
+`bash scripts/test_macos_model.sh`, `bash scripts/test_macos_hid.sh`,
+`bash scripts/test_macos_tools.sh`, `bash scripts/test_macos_controls.sh`,
+`bash scripts/test_macos_integration.sh` and `bash scripts/build_macos_app.sh`.
 `bash scripts/package_macos_app.sh` produces a current-user `.pkg` and SHA-256 file;
 it installs the app under ~/Applications without a driver or privileged installer script.
 Existing skill checks use Python unittest discovery

@@ -464,7 +464,42 @@ private func userCancellationAfterEarlyErrorRestoresPriorDraft() {
     checkCancellationAfterEarlyCompletion(error: "synthetic early completion error")
 }
 
+private func workspaceDraftsAreIsolated() {
+    let (model, _, _) = fixture()
+    let first = UUID(), second = UUID()
+    check(model.selectWorkspace(first), "select first workspace")
+    check(model.draft.text.isEmpty, "unbound draft is not silently moved")
+    model.replaceDraft("first workspace text")
+    check(model.selectWorkspace(second), "select second workspace")
+    check(model.draft.text.isEmpty, "second workspace starts independently")
+    model.replaceDraft("second workspace text")
+    check(model.selectWorkspace(first), "return to first")
+    check(model.draft.text == "first workspace text", "first workspace keeps its text")
+    check(model.selectWorkspace(nil), "return to unbound draft")
+    check(model.draft.text == "prior draft", "original unbound draft remains")
+}
+
+private func captureAndFinalizationLockWorkspace() {
+    let (model, bluetooth, speech) = fixture()
+    let first = UUID(), second = UUID()
+    check(model.selectWorkspace(first), "select before capture")
+    bluetooth.stream(true)
+    check(!model.selectWorkspace(second) && model.workspaceID == first,
+          "active audio locks target")
+    speech.text("first workspace utterance")
+    bluetooth.stream(false)
+    check(!model.selectWorkspace(second), "finalization locks target")
+    speech.complete()
+    check(model.selectWorkspace(second), "settled draft permits switching")
+    check(model.draft.text.isEmpty, "late result does not follow destination")
+    speech.text("late text")
+    check(model.selectWorkspace(first), "can inspect captured workspace")
+    check(model.draft.text == "first workspace utterance", "result remains owned by capture target")
+}
+
 private let cases: [(String, () -> Void)] = [
+    ("workspace draft ownership", workspaceDraftsAreIsolated),
+    ("workspace capture lock", captureAndFinalizationLockWorkspace),
     ("no authorization retains audio transport", noAuthorizationKeepsTransportAndSignal),
     ("recognizer start failure retains transport and reason", startFailurePreservesReasonAndTransport),
     ("persisted OS authorization", persistedAuthorizationIsImmediatelyEnabled),

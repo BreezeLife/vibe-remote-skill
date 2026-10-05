@@ -13,22 +13,41 @@ not observed in this development turn and they are not part of the native build.
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
 Local artifact: ~/Applications/Vibe Remote.app (0.1.1, arm64, local ad-hoc signature).
-The user confirmed no drafts needed preservation; both old copies exited normally.
+During the earlier 0.1.1 upgrade the user confirmed no drafts needed preservation; both old
+copies exited normally. The current instance now contains a new draft (see 0.2 below).
 One 0.1.1 instance is running from ~/Applications, with its signature verified after launch.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
-## Proposed 0.2 — visual buttons and coding tools
+## 0.2 — visual buttons and coding tools
 
 The user requested SayAll-inspired visual button configuration and Codex/Claude/WorkBuddy
 support. Design: docs/superpowers/specs/2026-10-05-visual-controls-design.md.
 
 - [x] Research official SayAll interactions/licensing, local app identities and native HID boundaries.
 - [x] Prepare a concrete desktop-first design, with tool capabilities verified separately.
-- [ ] Confirm desktop/CLI delivery scope and approve the design before implementation.
-- [ ] Implement visual configuration, device-scoped calibrated input and guarded tool adapters.
-- [ ] Verify physical remapping and actual tool actions, then build the 0.2 installer.
+- [x] User approved the desktop-first design and instructed implementation.
+- [x] Implement visual button/gesture editing, configuration copy/import/export and four sidebar pages.
+- [x] Add Codex, Claude Desktop, WorkBuddy and WorkBuddy AI presets plus custom .app bindings.
+- [x] Add device-scoped HID learning, all-interface exclusive capture, session validation and pause/release.
+- [x] Add workspace draft isolation and guarded AX focus, append/readback, reviewed send, stop and scroll.
+- [x] Add semantic shortcut selection/recording, explicit Codex thread opening and unsent new-draft prefilling.
+- [x] Pass core, Speech, voice-model, HID, tool, storage, controller and Python automated checks.
+- [x] Launch a separate 0.2 preview and observe its initial native window and sidebar controls.
+- [ ] Complete interactive UI inspection (native automation pipe disconnected after initial observation).
+- [ ] Verify physical raw-key suppression, gesture calibration and ATVV coexistence.
+- [ ] Verify each actual tool's AX input/focus/send/stop capabilities; presets alone do not establish support.
+- [x] Build and verify the 0.2 installer, including payload signature and independent SHA-256 check.
+- [ ] Synchronize the implementation and verification records to GitHub.
+- [ ] Install 0.2 locally after preserving the current 0.1.1 in-memory draft.
 
-These are proposed features; the installed 0.1.1 package does not yet include them.
+Installer: ~/Downloads/VibeRemote-0.2.0-20261005-163035/VibeRemote-0.2.0-arm64.pkg
+(661,083 bytes; version 0.2.0 / build 3). App is ad-hoc signed; installer remains unsigned
+and unnotarized. Implementation plan: docs/superpowers/plans/2026-10-05-visual-controls.md.
+The installed 0.1.1 package does not yet include these features. Its current window contains
+new in-memory draft text, so it was left running. No draft content was copied into records.
+The independent preview requested no permissions, opened no tool conversation, and was closed
+without changing the installed application. A passive HID inventory found no matching current
+interface; hardware calibration was not performed.
 
 ## 0.1.1 — installable package
 
@@ -95,16 +114,18 @@ or on-device language support on this Mac.
 - [ ] Physically verify language support, recognition permissions and two consecutive holds.
 - [ ] Physically verify cancellation/disconnection cleanup and explicit draft copying.
 
-Hardware checks remain unchecked regardless of software build/test results. The current
+Hardware checks remain unchecked regardless of software build/test results. The installed 0.1.1
 app does not capture the Mac microphone, expose a virtual input or intercept general
-HID keys. Other remote buttons may continue their normal macOS behavior.
+HID keys. Version 0.2 adds explicit device-scoped input; its physical acceptance remains pending.
 
 ## Subsequent integration work
 
 - [ ] Develop our own virtual microphone output to support Doubao / Typeless.
-- [ ] Observe real device HID events and implement the existing fixed button intentions.
-- [ ] Add an explicit workspace picker and observed APP/CLI target adapters.
-- [ ] Implement guarded insertion/submission only after verifying the actual AI input.
+- [ ] Physically verify the implemented HID mappings against real device events.
+- [x] Add a native workspace picker and guarded desktop APP adapter.
+- [ ] Add a separate native CLI runtime adapter; existing Python/tmux helper remains available.
+- [x] Implement guarded insertion/submission with fresh AI input and full-text review checks.
+- [ ] Complete actual tool acceptance for insertion/submission.
 - [ ] Add signed/notarized distribution and repeatable clean-machine acceptance.
 
 ## Supporting skill — retained and verified

@@ -11,6 +11,7 @@ final class RemoteModel: ObservableObject {
     @Published private(set) var isReceivingAudio = false
     @Published private(set) var recognitionIssue: String?
     @Published private(set) var draft = DraftSession()
+    @Published private(set) var workspaceID: UUID?
     @Published private(set) var level: Double = -60
     @Published private(set) var sampleCount = 0
     @Published private(set) var sampleRate = 0
@@ -22,6 +23,8 @@ final class RemoteModel: ObservableObject {
     private let speech: SpeechServicing
     private var speechFailed = false
     private var completedDuringHold = false
+    private var workspaceDrafts: [UUID: DraftSession] = [:]
+    private var unboundDraft = DraftSession()
 
     init(bluetooth: BluetoothServicing = BluetoothService(),
          speech: SpeechServicing = SpeechService()) {
@@ -120,6 +123,20 @@ final class RemoteModel: ObservableObject {
     func replaceDraft(_ text: String) {
         guard !isReceivingAudio else { return }
         draft.replaceText(text)
+    }
+
+    /// Moving between destinations never moves text. Capture and finalization
+    /// keep the same destination, including audio-only holds after Speech errors.
+    @discardableResult
+    func selectWorkspace(_ id: UUID?) -> Bool {
+        guard !isBusy else { return false }
+        guard id != workspaceID else { return true }
+        if let current = workspaceID { workspaceDrafts[current] = draft }
+        else { unboundDraft = draft }
+        workspaceID = id
+        draft = id.map { workspaceDrafts[$0] ?? DraftSession() } ?? unboundDraft
+        message = "已切换工作区；各工作区草稿分别保留在内存中。"
+        return true
     }
 
     func copyDraft() {

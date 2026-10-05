@@ -1,5 +1,7 @@
 # Vibe Remote native app — 2026-10-04
 
+0.2 扩展已按 [可视化按键与编程工具设计](superpowers/specs/2026-10-05-visual-controls-design.md) 实现；以下保留 0.1 音频/草稿架构背景。当前使用与能力限制见 [原生上手指南](NATIVE-SETUP.md)。
+
 The user has explicitly requested our own macOS application, referencing MiRemote's
 approach without installing or using its application. This supersedes the earlier
 skill-only / third-party-bridge plan.

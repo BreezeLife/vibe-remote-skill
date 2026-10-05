@@ -4,8 +4,9 @@
 
 [English](README.en.md) · [上手指南](docs/SETUP.md) · [完整按键约定](skills/vibe-remote/SKILL.md) · [MIT](LICENSE)
 
-Vibe Remote 正在开发为我们自己的 macOS 遥控器应用。首个原生版本直接连接小米遥控器，
-接收音频、转写为草稿，检查后显式复制使用。无需安装 MiRemote、SayAll 或 BlackHole。
+Vibe Remote 是我们自己的 macOS 遥控器应用。0.2 开发预览提供直接蓝牙听写、
+可视化按键配置，以及 Codex、Claude、WorkBuddy 的工作区绑定与经过检查的输入动作。
+无需安装 MiRemote、SayAll 或 BlackHole。
 现有 Codex skill 和 tmux 工具继续保留。
 
 ## 原生应用开发预览
@@ -25,7 +26,9 @@ open "$HOME/Applications/Vibe Remote.app"
 [原生应用上手指南](docs/NATIVE-SETUP.md) · [设计说明](docs/NATIVE-DESIGN.md)
 
 这是本地构建的开发预览，尚未签名公证发布。真实遥控器、权限和音频识别仍需实机验收。
-首版使用 Apple Speech；豆包 / Typeless 虚拟麦克风、其他按键映射和 APP 自动操作是后续里程碑。
+0.2 使用 Apple Speech，提供单击/长按/可选双击、独占按键校准、工作区内存草稿和
+AX 输入/发送/停止适配。工具未提供所需控件或实时状态时，动作会停用并保留草稿。
+豆包 / Typeless 虚拟麦克风及 CLI 深度适配仍是后续里程碑。
 下面的表格描述保留的 skill 能力，不代表原生应用已执行所有动作。
 
 ## 当前能力
