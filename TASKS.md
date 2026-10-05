@@ -37,7 +37,9 @@ support. Design: docs/superpowers/specs/2026-10-05-visual-controls-design.md.
 - [ ] Verify physical raw-key suppression, gesture calibration and ATVV coexistence.
 - [ ] Verify each actual tool's AX input/focus/send/stop capabilities; presets alone do not establish support.
 - [x] Build and verify the 0.2 installer, including payload signature and independent SHA-256 check.
-- [ ] Synchronize the implementation and verification records to GitHub.
+- [x] Synchronize implementation commit 544887d to GitHub main without force.
+- [x] Pass all five hosted jobs for implementation commit 544887d, including native tests,
+  release app and installer verification: https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37284339661.
 - [ ] Install 0.2 locally after preserving the current 0.1.1 in-memory draft.
 
 Installer: ~/Downloads/VibeRemote-0.2.0-20261005-163035/VibeRemote-0.2.0-arm64.pkg

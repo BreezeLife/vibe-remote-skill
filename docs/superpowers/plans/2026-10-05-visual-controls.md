@@ -84,7 +84,7 @@ Files: update `.github/workflows/checks.yml`, `apps/macos/Packaging/Info.plist`,
 - [x] Run core, Speech, model, HID, tool and coordinator suites, Python unittest discovery, neutral config validation and `git diff --check`.
 - [x] Build version 0.2.0 / build 3 installer into a new Downloads directory using `VIBE_PACKAGE_OUTPUT_DIR=... bash scripts/package_macos_app.sh`. Verify payload signature and SHA-256.
 - [x] Record actual software checks separately from unperformed physical remote/tool acceptance. Keep failed/unverified actions disabled.
-- [ ] Commit selected project files, synchronize GitHub without force, and report the installer plus any real-device setup still required. Preserve unrelated STATUS.md and .project-pulse/.
+- [x] Commit selected project files, synchronize GitHub without force, and report the installer plus any real-device setup still required. Preserve unrelated STATUS.md and .project-pulse/.
 
 Execution evidence (2026-10-05): all software suites passed; initial native preview window
 was observed, then the native automation pipe closed before interactive page inspection.

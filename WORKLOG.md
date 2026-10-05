@@ -358,3 +358,11 @@ verification passed. SHA-256:
 The installer remains unsigned/unnotarized and contains an ad-hoc-signed app. Earlier
 packages and the installed app were preserved; 0.2 has not been installed over the draft.
 Unrelated STATUS.md and .project-pulse/ remain untracked and untouched.
+
+Implementation commit 544887d was fast-forwarded to main and pushed without force.
+The GitHub API independently confirmed main at that commit. All five hosted jobs passed:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37284339661.
+The native job passed XCTest, standalone suites, release app and installer verification
+in 4m37s; all four Linux/macOS Python matrix jobs passed. The final follow-up commit changes
+only delivery/verification records and skips a redundant CI run. Hardware acceptance and
+local 0.2 installation remain pending; the user has been asked how to preserve the new draft.
