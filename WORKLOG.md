@@ -242,3 +242,39 @@ Published fix commit 73bb098a7997578cc4d1fceb050948a67f75e521 via non-forced pus
 GitHub main, and verified local and remote commit agreement. All five hosted jobs passed,
 including native XCTest, standalone core/Speech/model checks and release packaging:
 https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37245721494.
+
+## 2026-10-05 — generate and install the macOS package
+
+The user requested an installer and installation on this Mac. Read the project records
+and existing bundle build script, then added scripts/package_macos_app.sh plus native
+Installer distribution/component metadata and Chinese welcome/completion pages. No
+application behavior or version changed. Apple Installer's current-user domain keeps
+the established ~/Applications path without sudo; other domains and bundle relocation
+are disabled. Strict bundle identity and version checks prevent unrelated replacement
+or downgrades. Installer metadata requires Vibe Remote to close before updating; no
+pre/postinstall scripts, drivers, automatic privacy grants or auto-launch are packaged.
+
+Built release 0.1.1 in a temporary local directory, made the product archive, verified
+its only permitted domain is CurrentUserHomeDirectory, expanded its app payload and
+verified the ad-hoc signature. Independently checked the final Distribution: arm64,
+minimum macOS 13.0 under volume-check, user-home-only domains, and the app's must-close
+bundle ID. The archive's SHA-256 sidecar passed verification. The builder refuses to
+overwrite an existing package/checksum; an initial inspection archive was moved out of
+Downloads so the delivered filename identifies the final package.
+
+Normally terminated the current app under the user's installation authorization, then
+ran installer on the final .pkg with -target CurrentUserHomeDirectory, without sudo.
+Installer reported successful installation at /Users/weiqi. pkgutil receipt query with
+the user's home as volume confirmed io.github.BreezeLife.VibeRemote.installer 0.1.1,
+location Applications. Installed app ownership is weiqi:staff. Opened the installed app
+and observed exactly one VibeRemote process from ~/Applications; version and strict
+signature verification passed after launch. GUI Installer interaction, clean-machine
+Gatekeeper acceptance and physical remote/recognition acceptance remain unverified.
+
+Delivered ~/Downloads/VibeRemote-0.1.1-arm64.pkg (148,738 bytes) plus its .sha256 file.
+SHA-256: d5b996763064ff682f8469e7b80cb89d20810a5769ef7cf9194b4dfb49270457.
+The app is ad-hoc signed; the installer itself is unsigned and not notarized.
+All 30 Python tests, neutral config validation, shell/plist syntax and git diff --check
+passed. Native application logic was unchanged; packaging, expanded-payload verification
+and actual installation were the relevant native checks. Added package build/verification
+to the existing native CI job. Unrelated STATUS.md and .project-pulse/ remain preserved.

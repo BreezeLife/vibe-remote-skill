@@ -69,3 +69,15 @@
 - Test the actual RemoteModel through injected service interfaces, in addition to core
   protocol and Speech PCM tests. Synthetic tests never instantiate real Bluetooth or
   recognition services, request permissions, or access the user's clipboard.
+
+## 2026-10-05 — installer distribution
+
+- Distribute a standard current-user `.pkg`, installing only to ~/Applications.
+  Disable system/other-volume domains and bundle relocation so an update cannot select
+  the old cloud-workspace bundle. Require closing Vibe Remote before installing.
+- Keep strict bundle identity and version checks. No installer scripts, privileged helper,
+  driver, automatic privacy grants or automatic launch are included in the package.
+- Build/stage signed app bundles outside iCloud; archive files may live in Downloads or
+  the ignored build/packages directory. Label the actual native architecture and minimum OS.
+- This development package contains an ad-hoc-signed app; the installer itself is unsigned
+  and unnotarized. Do not describe it as Developer ID signed or clean-machine accepted.

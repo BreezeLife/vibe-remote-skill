@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Vibe Remote @VERSION@</title>
+    <welcome file="Welcome.html" mime-type="text/html"/>
+    <conclusion file="Conclusion.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="@ARCH@"/>
+    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+    <volume-check script="true">
+        <allowed-os-versions><os-version min="@MIN_OS@"/></allowed-os-versions>
+    </volume-check>
+    <choices-outline><line choice="app"/></choices-outline>
+    <choice id="app" title="Vibe Remote" visible="false">
+        <pkg-ref id="io.github.BreezeLife.VibeRemote.installer"/>
+    </choice>
+    <pkg-ref id="io.github.BreezeLife.VibeRemote.installer" version="@VERSION@">VibeRemote-component.pkg</pkg-ref>
+    <pkg-ref id="io.github.BreezeLife.VibeRemote.installer">
+        <must-close><app id="io.github.BreezeLife.VibeRemote"/></must-close>
+    </pkg-ref>
+</installer-gui-script>

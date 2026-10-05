@@ -4,7 +4,36 @@
 不需要安装 MiRemote、SayAll、BlackHole 或其他桥接应用。首版使用 Apple 语音识别，
 豆包 / Typeless 的虚拟麦克风以及通用遥控器按键映射尚未实现。
 
-## 构建与打开
+## 安装包
+
+`.pkg` 安装到当前用户的 `~/Applications/Vibe Remote.app`，无需管理员权限。
+先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
+Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
+
+本次生成的是 **0.1.1 / Apple Silicon（arm64）/ macOS 13+** 开发包。
+应用使用本地 ad-hoc 签名，安装包尚未 Developer ID 签名或 Apple 公证。
+安装不自动授予蓝牙或语音识别权限，也不安装其他桥接程序或驱动。
+
+开发者可在仓库根目录生成当前机器架构的安装包和 SHA-256 文件：
+
+```sh
+bash scripts/package_macos_app.sh
+```
+
+默认输出到 `build/packages/`。可用 `VIBE_PACKAGE_OUTPUT_DIR` 指定其他目录，例如：
+
+```sh
+VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
+installer -pkg "$HOME/Downloads/VibeRemote-0.1.1-arm64.pkg" -target CurrentUserHomeDirectory
+open "$HOME/Applications/Vibe Remote.app"
+```
+
+重建时若同名包或校验文件已存在，脚本会拒绝覆盖；选择新的输出目录即可。
+打包先在本地临时目录构建，再校验唯一安装域及解包后的签名。安装器禁止重定位到
+历史工作目录副本，拒绝覆盖不同 Bundle ID，并检查已有应用版本，避免降级。
+用户域、退出要求与最低系统版本采用 [Apple Installer Distribution 配置](https://developer.apple.com/library/archive/documentation/DeveloperTools/Reference/DistributionDefinitionRef/Chapters/Distribution_XML_Ref.html)。
+
+## 从源码构建与打开
 
 需要 macOS 13+ 和 Xcode Command Line Tools；在仓库根目录执行：
 

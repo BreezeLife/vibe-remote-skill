@@ -48,6 +48,8 @@ https://github.com/BreezeLife/vibe-remote-skill (MIT original code and MIT notic
 Native design and build/use steps: docs/NATIVE-DESIGN.md and docs/NATIVE-SETUP.md.
 Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
 `bash scripts/test_macos_model.sh` and `bash scripts/build_macos_app.sh`.
+`bash scripts/package_macos_app.sh` produces a current-user `.pkg` and SHA-256 file;
+it installs the app under ~/Applications without a driver or privileged installer script.
 Existing skill checks use Python unittest discovery
 and the config validator. CI checks both native and Python paths.
 

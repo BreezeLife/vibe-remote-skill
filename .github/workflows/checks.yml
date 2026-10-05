@@ -47,3 +47,7 @@ jobs:
         env:
           VIBE_OUTPUT_DIR: ${{ runner.temp }}/vibe-remote-build
         run: bash scripts/build_macos_app.sh
+      - name: Build and verify current-user installer
+        env:
+          VIBE_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/vibe-remote-installer
+        run: bash scripts/package_macos_app.sh

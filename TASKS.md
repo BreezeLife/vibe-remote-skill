@@ -17,6 +17,22 @@ The user confirmed no drafts needed preservation; both old copies exited normall
 One 0.1.1 instance is running from ~/Applications, with its signature verified after launch.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
+## 0.1.1 — installable package
+
+- [x] Build a standard current-user installer and SHA-256 checksum:
+  ~/Downloads/VibeRemote-0.1.1-arm64.pkg (Apple Silicon, macOS 13+).
+- [x] Restrict the installer to ~/Applications, disable relocation, require closing the
+  app, enforce strict bundle identity and check existing versions before replacement.
+- [x] Verify the product's sole domain, supported architecture/minimum OS, must-close
+  metadata, and signature of the expanded app payload.
+- [x] Install the actual .pkg without sudo; receipt records user volume and Applications.
+- [x] Reopen the installed 0.1.1 app; confirm one process, current-user ownership and valid
+  signature after launch. Package size: 148,738 bytes.
+- [x] Add repeatable packaging and payload verification to the native CI workflow.
+
+The installer is unsigned and unnotarized; its contained app has a local ad-hoc signature.
+This local installation does not complete clean-machine distribution or hardware acceptance.
+
 ## 0.1.1 — voice key disconnect repair
 
 - [x] Trace the reported immediate disconnect and “已手动停止” screenshot to the automatic
