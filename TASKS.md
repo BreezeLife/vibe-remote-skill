@@ -17,6 +17,19 @@ The user confirmed no drafts needed preservation; both old copies exited normall
 One 0.1.1 instance is running from ~/Applications, with its signature verified after launch.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
+## Proposed 0.2 — visual buttons and coding tools
+
+The user requested SayAll-inspired visual button configuration and Codex/Claude/WorkBuddy
+support. Design: docs/superpowers/specs/2026-10-05-visual-controls-design.md.
+
+- [x] Research official SayAll interactions/licensing, local app identities and native HID boundaries.
+- [x] Prepare a concrete desktop-first design, with tool capabilities verified separately.
+- [ ] Confirm desktop/CLI delivery scope and approve the design before implementation.
+- [ ] Implement visual configuration, device-scoped calibrated input and guarded tool adapters.
+- [ ] Verify physical remapping and actual tool actions, then build the 0.2 installer.
+
+These are proposed features; the installed 0.1.1 package does not yet include them.
+
 ## 0.1.1 — installable package
 
 Latest regenerated package (2026-10-05 10:58, Asia/Shanghai):

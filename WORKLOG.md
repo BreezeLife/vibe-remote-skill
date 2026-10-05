@@ -290,3 +290,23 @@ Build and packaging succeeded; the expanded app signature, user-home-only instal
 domain and final archive checksum all passed. The previous package was preserved.
 This request regenerated the archive only; no installed app was replaced or restarted.
 The installer remains unsigned/unnotarized and contains the ad-hoc-signed arm64 app.
+
+## 2026-10-05 — visual button / coding tool design
+
+The user requested our own SayAll-inspired button configuration and coding-tool support.
+Read the project records, native app and skill contracts; researched official SayAll,
+Apple HID/AX and tool documentation. Prepared a reviewable 0.2 design with desktop-first
+scope proposed, real HID calibration/exclusive control, stable button intentions, tool
+bindings and separately verified activation/input/send/stop capabilities.
+
+Read-only app metadata identified Codex (com.openai.codex, currently ChatGPT.app), Claude,
+and two different WorkBuddy bundle IDs. Their installed state does not establish any
+working focus or submission adapter. CLI executables for Codex and Claude exist; WorkBuddy
+and tmux were not found on PATH. No app, CLI, permission or hardware state was changed.
+
+The design keeps the MIT project independent of SayAll's GPL client and proprietary assets,
+preserves ATVV as the sole voice-capture source, and separates observation from exclusive
+remapping so raw system key leakage cannot bypass action checks. Asked the user whether
+desktop or CLI delivery should come first; desktop-first remains a stated proposal.
+No implementation or new installer is claimed. Design approval and physical acceptance
+remain pending. Existing local configuration, drafts and unrelated files are preserved.
