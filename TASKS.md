@@ -12,9 +12,9 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Local artifact: ~/Applications/Vibe Remote.app (0.1.0, arm64, local ad-hoc signature).
-Repair artifact: 0.1.1 built and signed outside the cloud checkout; replacing/rerunning
-the installed app is pending preservation of drafts in two running 0.1.0 instances.
+Local artifact: ~/Applications/Vibe Remote.app (0.1.1, arm64, local ad-hoc signature).
+The user confirmed no drafts needed preservation; both old copies exited normally.
+One 0.1.1 instance is running from ~/Applications, with its signature verified after launch.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.1.1 — voice key disconnect repair
@@ -30,7 +30,9 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
   original disconnect bug and an early-completion cancellation regression.
 - [x] Recheck 25 core tests, 42 Speech assertions, 30 Python tests and template validation.
 - [x] Build 0.1.1 release and verify its local signature; add model regressions to CI.
-- [ ] Preserve any old-window drafts, exit duplicate instances and launch installed 0.1.1.
+- [x] Confirm draft preservation with the user, exit duplicate instances and launch installed 0.1.1.
+- [x] Publish the fix as 73bb098 and pass all five hosted jobs, including model regressions:
+  https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37245721494.
 - [ ] Physically repeat press/release twice and confirm audio, exact Speech capability/error,
   and draft behavior with the repaired app.
 
@@ -89,7 +91,8 @@ The 2026-10-04 doctor scan found Codex 26.930.21537, Doubao 0.5.7, SayAll 1.9.21
 MiRemoteV2ch.driver, but no Bluetooth candidate. On 2026-10-05 the user reported connecting
 and then immediately disconnecting on the voice key. Process inspection found two running
 0.1.0 Vibe Remote copies (cloud-workspace build and ~/Applications) and no matching SayAll
-or remote bridge process. Native audio/TCC acceptance remains incomplete. Use one app
-instance, and quit competing remote bridges before the next physical test.
+or remote bridge process. After user confirmation, both were replaced by one running
+0.1.1 instance from ~/Applications. Native audio/TCC acceptance remains incomplete.
+Use one app instance, and quit competing remote bridges before the next physical test.
 
 Local config remains ignored. Preserve unrelated untracked STATUS.md and .project-pulse/.

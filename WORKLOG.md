@@ -229,3 +229,16 @@ Two old app processes were observed: the superseded cloud-workspace build and th
 ~/Applications build. No matching SayAll/remote bridge process was found. Both old windows
 were left running while the user was asked whether any in-memory drafts need preserving
 before replacement/relaunch. Unrelated STATUS.md and .project-pulse/ remain untouched.
+
+The user then explicitly confirmed no drafts needed preserving and approved the update.
+Requested normal termination of both verified Vibe Remote instances through AppKit;
+both requests succeeded and both processes exited. Installed the validated 0.1.1 bundle
+in ~/Applications, opened it with LaunchServices, and observed exactly one VibeRemote
+process from that location. The installed Info.plist reported 0.1.1 and its signature
+passed strict verification again after launch. This confirms version/process startup,
+not UI, hardware or recognition acceptance; the next physical press/release is pending.
+
+Published fix commit 73bb098a7997578cc4d1fceb050948a67f75e521 via non-forced push to
+GitHub main, and verified local and remote commit agreement. All five hosted jobs passed,
+including native XCTest, standalone core/Speech/model checks and release packaging:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37245721494.
