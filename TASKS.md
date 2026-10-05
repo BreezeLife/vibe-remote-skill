@@ -19,6 +19,11 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.1.1 — installable package
 
+Latest regenerated package (2026-10-05 10:58, Asia/Shanghai):
+~/Downloads/VibeRemote-rebuild-20261005-105806/VibeRemote-0.1.1-arm64.pkg.
+Version remains 0.1.1 / build 2; the regenerated archive passed payload signature,
+current-user-only domain and SHA-256 checks. The original installed package is retained.
+
 - [x] Build a standard current-user installer and SHA-256 checksum:
   ~/Downloads/VibeRemote-0.1.1-arm64.pkg (Apple Silicon, macOS 13+).
 - [x] Restrict the installer to ~/Applications, disable relocation, require closing the

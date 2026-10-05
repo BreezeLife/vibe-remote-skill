@@ -278,3 +278,15 @@ All 30 Python tests, neutral config validation, shell/plist syntax and git diff 
 passed. Native application logic was unchanged; packaging, expanded-payload verification
 and actual installation were the relevant native checks. Added package build/verification
 to the existing native CI job. Unrelated STATUS.md and .project-pulse/ remain preserved.
+
+## 2026-10-05 10:58 (Asia/Shanghai) — regenerate installer
+
+At the user's request, reran the existing release packaging workflow from bf715ac
+without changing application source or version (0.1.1 / build 2). New artifact:
+~/Downloads/VibeRemote-rebuild-20261005-105806/VibeRemote-0.1.1-arm64.pkg,
+148,732 bytes, with its .sha256 sidecar. SHA-256:
+67e903427a41d2b60454c085787e829ff0420e76b025936d379a86a49e15e7e9.
+Build and packaging succeeded; the expanded app signature, user-home-only installation
+domain and final archive checksum all passed. The previous package was preserved.
+This request regenerated the archive only; no installed app was replaced or restarted.
+The installer remains unsigned/unnotarized and contains the ad-hoc-signed arm64 app.
