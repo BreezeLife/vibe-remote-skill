@@ -104,3 +104,11 @@
   Saved shortcuts are semantic implementations only, never a bypass for missing state.
 - Explicit Codex thread navigation and new-draft prefilling are independent actions;
   neither substitutes for missing bindings nor sends automatically.
+
+
+## 2026-10-08 — app icon
+
+- Keep the original generated icon PNG and its prompt in apps/macos/Packaging/Artwork.
+  Regenerate ICNS with scripts/build_macos_icon.sh; normal builds consume the checked-in
+  ICNS and need no image-generation service. The design is a white remote with mint audio
+  bars on a graphite tile; no third-party branding. App icon metadata starts in 0.2.1.

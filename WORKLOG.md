@@ -366,3 +366,34 @@ The native job passed XCTest, standalone suites, release app and installer verif
 in 4m37s; all four Linux/macOS Python matrix jobs passed. The final follow-up commit changes
 only delivery/verification records and skips a redundant CI run. Hardware acceptance and
 local 0.2 installation remain pending; the user has been asked how to preserve the new draft.
+
+
+## 2026-10-08 — configuration help and original app icon
+
+The user supplied the programming-tools page and asked how to configure it and for an app
+icon. The screenshot reports missing Accessibility authorization. Read the project records
+and checked the actual settings/coordinator/adapter code with a read-only review. Clarified
+optional workspace URL fields, the below-fold input/task learning sequence, empty-draft
+learning requirement, and the additional exclusive HID/session acknowledgement required
+even for mouse-triggered send preview. No system permission was changed or tool operated.
+
+Generated an original graphite-tile, white-remote, mint-waveform icon using built-in
+image_gen, without reference artwork or third-party logos. Saved the original 1254-square
+RGBA PNG and full generation prompt under apps/macos/Packaging/Artwork. Added a mechanical
+sips/iconutil conversion script and AppIcon.icns containing ten standard 16–1024 pixel
+representations. Added CFBundleIconFile and copy into the signed app resources. Bumped
+package metadata to 0.2.1 / build 4; no runtime application source or behavior changed.
+
+Release build and packaging succeeded. Independently expanded the final product, verified
+its version/icon declaration, compared the bundled ICNS byte-for-byte with the repository
+asset, decoded all ten icon representations, and verified the strict app signature. Archive
+checksum passed. All 30 Python tests, neutral configuration validation, shell/plist syntax
+and git diff --check passed. Package:
+~/Downloads/VibeRemote-0.2.1-20261008-194907/VibeRemote-0.2.1-arm64.pkg
+(2,488,333 bytes); SHA-256:
+4fd4199b0fde8b335e8f018d13a1199ec62be44024c73dd937ae15b8bba20977.
+App remains ad-hoc signed, installer unsigned/unnotarized. No installed app was overwritten
+or restarted. Read-only metadata now finds 0.2.0 / build 3 at /Applications/Vibe Remote.app;
+the earlier ~/Applications copy is absent. This is not evidence of live permission or
+draft state. Updated TASKS to distinguish this new evidence from the earlier preservation
+record. Unrelated STATUS.md and .project-pulse/ remain untouched.

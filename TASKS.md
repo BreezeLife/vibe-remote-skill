@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-05 (Asia/Shanghai).
+Updated: 2026-10-08 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -12,11 +12,26 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Local artifact: ~/Applications/Vibe Remote.app (0.1.1, arm64, local ad-hoc signature).
-During the earlier 0.1.1 upgrade the user confirmed no drafts needed preservation; both old
-copies exited normally. The current instance now contains a new draft (see 0.2 below).
-One 0.1.1 instance is running from ~/Applications, with its signature verified after launch.
+Installed metadata verified on 2026-10-08: /Applications/Vibe Remote.app, 0.2.0 / build 3.
+The earlier ~/Applications copy is absent. This records the bundle location/version only,
+not current draft, permission, connection or running state.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.1 — app icon and configuration guidance
+
+- [x] Generate an original remote/waveform app icon; preserve transparent source artwork.
+- [x] Convert 10 standard icon representations into ICNS and include it in the app bundle.
+- [x] Explain workspace fields, accessibility authorization, input/title learning and send gates.
+- [x] Build release and installer; verify expanded icon matches source ICNS, all 10 sizes,
+  bundle version/icon declaration, strict app signature and independent archive checksum.
+- [x] Pass all 30 Python checks, neutral config validation, shell/plist syntax and diff checks.
+- [ ] Install the icon update; this turn does not replace or restart the user's app.
+
+Artifact: ~/Downloads/VibeRemote-0.2.1-20261008-194907/VibeRemote-0.2.1-arm64.pkg
+(2,488,333 bytes; version 0.2.1 / build 4). App is ad-hoc signed; package unsigned/unnotarized.
+The installer retains the current-user ~/Applications destination. The observed installed
+0.2.0 app is in /Applications; avoid launching both copies after a future update.
+No runtime voice, button or AX adapter behavior changed in 0.2.1.
 
 ## 0.2 — visual buttons and coding tools
 
@@ -40,16 +55,16 @@ support. Design: docs/superpowers/specs/2026-10-05-visual-controls-design.md.
 - [x] Synchronize implementation commit 544887d to GitHub main without force.
 - [x] Pass all five hosted jobs for implementation commit 544887d, including native tests,
   release app and installer verification: https://github.com/BreezeLife/vibe-remote-skill/actions/runs/37284339661.
-- [ ] Install 0.2 locally after preserving the current 0.1.1 in-memory draft.
+- [x] Verify 0.2.0 installed metadata after the user installed it; current location recorded above.
 
 Installer: ~/Downloads/VibeRemote-0.2.0-20261005-163035/VibeRemote-0.2.0-arm64.pkg
 (661,083 bytes; version 0.2.0 / build 3). App is ad-hoc signed; installer remains unsigned
 and unnotarized. Implementation plan: docs/superpowers/plans/2026-10-05-visual-controls.md.
-The installed 0.1.1 package does not yet include these features. Its current window contains
-new in-memory draft text, so it was left running. No draft content was copied into records.
-The independent preview requested no permissions, opened no tool conversation, and was closed
-without changing the installed application. A passive HID inventory found no matching current
-interface; hardware calibration was not performed.
+During 0.2 development on 2026-10-05, the installed 0.1.1 window contained new in-memory
+draft text, so it was left running. No draft content was copied into records. The independent
+preview requested no permissions, opened no tool conversation, and was closed without changing
+the installed application. That passive HID inventory found no matching interface; hardware
+calibration was not performed. The subsequent installed 0.2.0 metadata is recorded above.
 
 ## 0.1.1 — installable package
 
