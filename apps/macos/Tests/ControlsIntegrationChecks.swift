@@ -200,6 +200,20 @@ private final class IntegrationHID: HIDRemoteDriver {
             check(fixture.ax.presses.isEmpty, "preparing review never sends")
         }
 
+        await run("button action edits stay with their workspace and preserve shared calibration") { f in
+            let shared = f.controls.settings.mappings
+            f.configureOK(single: .insertDraft)
+            check(f.controls.mapping.single == .insertDraft, "selected workspace receives edited action")
+            check(f.controls.settings.mappings == shared, "workspace edits do not overwrite shared actions or HID keys")
+            f.controls.selectWorkspace(f.second.id)
+            check(f.controls.mapping.single == .sendDraft, "another workspace keeps its original action")
+            f.controls.selectWorkspace(f.first.id)
+            check(f.controls.mapping.single == .insertDraft, "switching back restores scoped action")
+            f.seize(); f.input.emit(down: true); f.input.emit(down: false)
+            await settle(f)
+            check(f.ax.writes.count == 1 && f.ax.presses.isEmpty, "physical key dispatch uses scoped insertion without sending")
+            check(f.voice.draft.text == "synthetic alpha draft", "configuration preserves the owned draft")
+        }
         await run("failed persistence preserves live configuration and drafts") { f in
             let before = f.controls.settings
             let stored = try Data(contentsOf: f.store.url)
@@ -210,6 +224,60 @@ private final class IntegrationHID: HIDRemoteDriver {
             let after = try Data(contentsOf: f.store.url)
             check(after == stored, "failed save preserves original settings bytes")
             check(f.voice.draft.text == "synthetic alpha draft", "failed save retains owned draft")
+        }
+        await run("tool presets create independent workspaces without replacing existing settings") { f in
+            let before = f.controls.settings
+            for bundle in ["com.openai.codex", "com.anthropic.claudefordesktop", "com.tencent.workbuddy.mac", "com.workbuddy.workbuddy-ai"] {
+                f.controls.addWorkspace(InstalledTool(name: "Synthetic tool", bundleIdentifier: bundle, appPath: nil, version: nil))
+                let created = f.controls.workspace!
+                check(created.buttonActions == CodingToolPreset.matching(bundleIdentifier: bundle)?.buttonActions, "new tool gets its preset")
+                check(created.binding == nil && created.shortcuts.isEmpty, "preset never fabricates verified controls or shortcuts")
+            }
+            check(f.controls.settings.mappings == before.mappings, "preset creation preserves all calibrated HID keys")
+            check(Array(f.controls.settings.workspaces.prefix(2)) == before.workspaces, "existing workspace actions and bindings remain unchanged")
+            f.controls.selectWorkspace(f.first.id)
+            check(f.voice.draft.text == "synthetic alpha draft", "adding presets retains earlier workspace draft")
+        }
+        await run("explicit preset restore preserves bindings drafts other workspaces and learned keys") { f in
+            var profile = f.first
+            profile.bundleIdentifier = "com.openai.codex"
+            profile.previewURL = "http://localhost:3000"
+            profile.shortcuts = [ActionShortcut(action: .sendDraft, keyCode: 36)]
+            f.controls.updateWorkspace(profile)
+            f.configureOK(single: .insertDraft)
+            let before = f.controls.settings
+            check(f.controls.applyToolPreset(to: profile), "supported preset applies")
+            var expected = before.workspaces[0]
+            expected.buttonActions = CodingToolPreset.codex.buttonActions; expected.shortcuts = []
+            check(f.first == expected, "restore changes only scoped actions and optional shortcuts")
+            check(f.second == before.workspaces[1] && f.controls.settings.mappings == before.mappings, "other workspace and calibration preserved")
+            check(f.voice.draft.text == "synthetic alpha draft" && f.ax.writes.isEmpty && f.ax.presses.isEmpty, "applying preset never inserts or sends")
+            let loaded = try f.store.load()
+            check(loaded == f.controls.settings, "scoped preset persists and reloads")
+            f.controls.selectedButton = .back
+            let backInput = f.controls.mapping.input
+            _ = f.controls.updateMapping { $0.single = .none }
+            f.controls.restoreButtonDefaults()
+            check(f.controls.mapping.single == .cancel && f.controls.mapping.input == backInput, "action reset retains calibration")
+        }
+        for source in ["timer", "input"] {
+            await run("\(source) batch drops old actions after switching workspace") { f in
+                let third = WorkspaceProfile(name: "Synthetic Gamma", bundleIdentifier: "test.synthetic")
+                _ = f.controls.updateSettings { $0.workspaces.append(third) }
+                f.configureOK(single: .nextWorkspace, double: .focusTarget)
+                f.controls.selectedButton = .left
+                _ = f.controls.updateMapping { $0.single = .nextWorkspace; $0.double = .focusTarget }
+                f.seize()
+                f.input.tap(42); f.input.tap(40)
+                if source == "input" {
+                    // Deliberately delay the run loop so process() resolves both queued timers.
+                    func elapse() { Thread.sleep(forTimeInterval: 0.36) }
+                    elapse(); f.input.emit(41, down: true)
+                } else {
+                    try? await Task.sleep(nanoseconds: 450_000_000)
+                }
+                check(f.voice.workspaceID == f.second.id, "only first workspace switch executes; old OK action cannot jump to third")
+            }
         }
         await run("workspace switches retain independent drafts and capture ownership") { f in
             f.controls.selectWorkspace(f.second.id); f.voice.replaceDraft("synthetic beta draft")

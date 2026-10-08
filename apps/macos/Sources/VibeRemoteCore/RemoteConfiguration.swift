@@ -5,7 +5,7 @@ public enum RemoteButton: String, Codable, CaseIterable, Identifiable {
     public var id: String { rawValue }
     public var label: String {
         switch self {
-        case .power: return "工作区"
+        case .power: return "电源"
         case .mic: return "语音"
         case .up: return "上"
         case .down: return "下"
@@ -85,6 +85,21 @@ public struct ButtonMapping: Codable, Equatable {
     }
 }
 
+/// Workspace actions share physical HID calibration from the global button mapping.
+public struct ButtonActionMapping: Codable, Equatable {
+    public var button: RemoteButton
+    public var single: RemoteAction
+    public var long: RemoteAction?
+    public var double: RemoteAction?
+    public init(button: RemoteButton, single: RemoteAction = .none, long: RemoteAction? = nil,
+                double: RemoteAction? = nil) {
+        self.button = button; self.single = single; self.long = long; self.double = double
+    }
+    public init(_ mapping: ButtonMapping) {
+        self.init(button: mapping.button, single: mapping.single, long: mapping.long, double: mapping.double)
+    }
+}
+
 /// An accessibility location never contains an input value or a transcript.
 public struct AXLocator: Codable, Equatable {
     public var path: [Int]
@@ -148,12 +163,14 @@ public struct WorkspaceProfile: Codable, Equatable, Identifiable {
     public var previewURL: String?
     public var codexThreadURL: String?
     public var shortcuts: [ActionShortcut]
+    public var buttonActions: [ButtonActionMapping]?
     public init(id: UUID = UUID(), name: String, bundleIdentifier: String, appPath: String? = nil,
                 binding: ToolBinding? = nil, previewURL: String? = nil, codexThreadURL: String? = nil,
-                shortcuts: [ActionShortcut] = []) {
+                shortcuts: [ActionShortcut] = [], buttonActions: [ButtonActionMapping]? = nil) {
         self.id = id; self.name = name; self.bundleIdentifier = bundleIdentifier; self.appPath = appPath
         self.binding = binding; self.previewURL = previewURL; self.codexThreadURL = codexThreadURL
         self.shortcuts = shortcuts
+        self.buttonActions = buttonActions
     }
 }
 
@@ -175,6 +192,22 @@ public struct NativeSettings: Codable, Equatable {
          .init(button: .home, single: .focusTarget), .init(button: .menu, single: .actionPicker),
          .init(button: .tv, single: .preview), .init(button: .volumeUp, single: .volumeUp),
          .init(button: .volumeDown, single: .volumeDown)]
+    }
+    public func effectiveMapping(for button: RemoteButton, workspaceID: UUID?) -> ButtonMapping {
+        guard var mapping = mappings.first(where: { $0.button == button }) else {
+            return ButtonMapping(button: button)
+        }
+        if let workspaceID,
+           let actions = workspaces.first(where: { $0.id == workspaceID })?.buttonActions,
+           let action = actions.first(where: { $0.button == button }) {
+            mapping.single = action.single
+            mapping.long = action.long
+            mapping.double = action.double
+        }
+        // A preset retains its intended hold action for a future calibrated key;
+        // an input observed as pulses cannot execute that hold in this session.
+        if mapping.input?.supportsHold == false { mapping.long = nil }
+        return mapping
     }
     public func validate() throws {
         try require(format == "vibe-remote-native" && schemaVersion == 1, "不支持的原生配置格式或版本")
@@ -262,6 +295,15 @@ private extension WorkspaceProfile {
         try require(shortcuts.count <= 5 && Set(shortcuts.map(\.action)).count == shortcuts.count,
                     "工具动作快捷键重复或过多")
         try require(shortcuts.allSatisfy(\.isSupported), "此快捷键不属于受支持的工具动作")
+        if let buttonActions {
+            try require(buttonActions.count == RemoteButton.allCases.count &&
+                        Set(buttonActions.map(\.button)).count == buttonActions.count,
+                        "工作区方案必须为每个实体按键保留一项动作")
+            for mapping in buttonActions where mapping.button == .mic {
+                try require(mapping.single == .none && mapping.long == nil && mapping.double == nil,
+                            "语音键仅供 ATVV 使用，不能配置工作区动作")
+            }
+        }
     }
 }
 
@@ -317,6 +359,17 @@ extension ButtonMapping {
     }
 }
 
+extension ButtonActionMapping {
+    private enum CodingKeys: String, CodingKey, CaseIterable { case button, single, long, double }
+    public init(from decoder: Decoder) throws {
+        let values = try strictContainer(decoder, CodingKeys.self)
+        self.init(button: try values.decode(RemoteButton.self, forKey: .button),
+                  single: try values.decode(RemoteAction.self, forKey: .single),
+                  long: try values.decodeIfPresent(RemoteAction.self, forKey: .long),
+                  double: try values.decodeIfPresent(RemoteAction.self, forKey: .double))
+    }
+}
+
 extension AXLocator {
     private enum CodingKeys: String, CodingKey, CaseIterable { case path, role, identifier, label }
     public init(from decoder: Decoder) throws {
@@ -351,7 +404,7 @@ extension ActionShortcut {
 }
 
 extension WorkspaceProfile {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case id, name, bundleIdentifier, appPath, binding, previewURL, codexThreadURL, shortcuts }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case id, name, bundleIdentifier, appPath, binding, previewURL, codexThreadURL, shortcuts, buttonActions }
     public init(from decoder: Decoder) throws {
         let values = try strictContainer(decoder, CodingKeys.self)
         self.init(id: try values.decode(UUID.self, forKey: .id), name: try values.decode(String.self, forKey: .name),
@@ -360,7 +413,8 @@ extension WorkspaceProfile {
                   binding: try values.decodeIfPresent(ToolBinding.self, forKey: .binding),
                   previewURL: try values.decodeIfPresent(String.self, forKey: .previewURL),
                   codexThreadURL: try values.decodeIfPresent(String.self, forKey: .codexThreadURL),
-                  shortcuts: try values.decode([ActionShortcut].self, forKey: .shortcuts))
+                  shortcuts: try values.decode([ActionShortcut].self, forKey: .shortcuts),
+                  buttonActions: try values.decodeIfPresent([ButtonActionMapping].self, forKey: .buttonActions))
     }
 }
 

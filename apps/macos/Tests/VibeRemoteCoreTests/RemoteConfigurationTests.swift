@@ -5,6 +5,135 @@ import XCTest
 @testable import VibeRemoteCore
 
 final class RemoteConfigurationTests: XCTestCase {
+    func testWorkspaceButtonActionsSurviveStrictConfigurationRoundTrip() throws {
+        var settings = NativeSettings.defaults
+        settings.workspaces = [WorkspaceProfile(name: "Codex", bundleIdentifier: "com.openai.codex")]
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)) as? [String: Any])
+        var workspaces = try XCTUnwrap(object["workspaces"] as? [[String: Any]])
+        let actions = NativeSettings.defaultMappings.map { mapping -> [String: String] in
+            var action = ["button": mapping.button.rawValue, "single": mapping.single.rawValue]
+            if let long = mapping.long { action["long"] = long.rawValue }
+            if let double = mapping.double { action["double"] = double.rawValue }
+            return action
+        }
+        workspaces[0]["buttonActions"] = actions
+        object["workspaces"] = workspaces
+        let decoded = try JSONDecoder().decode(NativeSettings.self, from: JSONSerialization.data(withJSONObject: object))
+        try decoded.validate()
+        let roundTrip = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        let savedWorkspaces = try XCTUnwrap(roundTrip["workspaces"] as? [[String: Any]])
+        XCTAssertEqual(savedWorkspaces[0]["buttonActions"] as? [[String: String]], actions)
+    }
+
+    func testLegacyWorkspaceSettingsKeepGlobalActionsAndOmitOptionalOverrides() throws {
+        var settings = NativeSettings.defaults
+        let workspace = WorkspaceProfile(name: "Existing workspace", bundleIdentifier: "com.openai.codex")
+        settings.workspaces = [workspace]
+        let home = try XCTUnwrap(settings.mappings.firstIndex { $0.button == .home })
+        settings.mappings[home].single = .copyDraft
+        let encoded = try JSONEncoder().encode(settings)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let workspaces = try XCTUnwrap(object["workspaces"] as? [[String: Any]])
+        XCTAssertNil(workspaces[0]["buttonActions"])
+        let decoded = try JSONDecoder().decode(NativeSettings.self, from: encoded)
+        try decoded.validate()
+        XCTAssertEqual(decoded.schemaVersion, 1)
+        XCTAssertNil(decoded.workspaces[0].buttonActions)
+        XCTAssertEqual(decoded.effectiveMapping(for: .home, workspaceID: workspace.id).single, .copyDraft)
+    }
+
+    func testWorkspaceActionsStayScopedWhileCalibratedHIDIsShared() throws {
+        var settings = NativeSettings.defaults
+        let home = try XCTUnwrap(settings.mappings.firstIndex { $0.button == .home })
+        settings.mappings[home].input = sampleInput()
+        let globalHome = settings.mappings[home]
+        var codex = WorkspaceProfile(name: "Codex", bundleIdentifier: "com.openai.codex",
+                                     buttonActions: CodingToolPreset.codex.buttonActions)
+        let claude = WorkspaceProfile(name: "Claude", bundleIdentifier: "com.anthropic.claudefordesktop",
+                                      buttonActions: CodingToolPreset.claude.buttonActions)
+        codex.buttonActions?[home].single = .copyDraft
+        settings.workspaces = [codex, claude]
+        try settings.validate()
+        XCTAssertEqual(settings.effectiveMapping(for: .home, workspaceID: codex.id).single, .copyDraft)
+        XCTAssertEqual(settings.effectiveMapping(for: .home, workspaceID: claude.id).single, .focusTarget)
+        for id in [Optional(codex.id), Optional(claude.id), nil, Optional(UUID())] {
+            XCTAssertEqual(settings.effectiveMapping(for: .home, workspaceID: id).input, globalHome.input)
+        }
+        XCTAssertEqual(settings.effectiveMapping(for: .home, workspaceID: nil), globalHome)
+        XCTAssertEqual(settings.effectiveMapping(for: .home, workspaceID: UUID()), globalHome)
+        XCTAssertEqual(settings.mappings[home], globalHome)
+    }
+
+    func testPulseInputDisablesEffectiveHoldWithoutErasingWorkspaceAction() throws {
+        var settings = NativeSettings.defaults
+        let back = try XCTUnwrap(settings.mappings.firstIndex { $0.button == .back })
+        settings.mappings[back].input = sampleInput(supportsHold: false)
+        settings.mappings[back].long = nil
+        let workspace = WorkspaceProfile(name: "Codex", bundleIdentifier: "com.openai.codex",
+                                         buttonActions: CodingToolPreset.codex.buttonActions)
+        settings.workspaces = [workspace]
+        try settings.validate()
+        let effective = settings.effectiveMapping(for: .back, workspaceID: workspace.id)
+        XCTAssertNil(effective.long)
+        XCTAssertEqual(effective.single, .cancel)
+        XCTAssertEqual(effective.input, settings.mappings[back].input)
+        XCTAssertEqual(settings.workspaces[0].buttonActions?.first { $0.button == .back }?.long, .stopTask)
+        settings.mappings[back].input?.supportsHold = true
+        XCTAssertEqual(settings.effectiveMapping(for: .back, workspaceID: workspace.id).long, .stopTask)
+    }
+
+    func testWorkspaceActionsRejectMissingDuplicateAndReservedMicrophoneActions() throws {
+        var settings = NativeSettings.defaults
+        var workspace = WorkspaceProfile(name: "Codex", bundleIdentifier: "com.openai.codex",
+                                         buttonActions: CodingToolPreset.codex.buttonActions)
+        workspace.buttonActions?.removeLast()
+        settings.workspaces = [workspace]
+        XCTAssertThrowsError(try settings.validate())
+        workspace.buttonActions = CodingToolPreset.codex.buttonActions
+        let duplicate = try XCTUnwrap(workspace.buttonActions?[1])
+        workspace.buttonActions?[0] = duplicate
+        settings.workspaces = [workspace]
+        XCTAssertThrowsError(try settings.validate())
+        let mic = try XCTUnwrap(CodingToolPreset.codex.buttonActions.firstIndex { $0.button == .mic })
+        for action in [ButtonActionMapping(button: .mic, single: .sendDraft),
+                       ButtonActionMapping(button: .mic, long: .stopTask),
+                       ButtonActionMapping(button: .mic, double: .focusTarget)] {
+            workspace.buttonActions = CodingToolPreset.codex.buttonActions
+            workspace.buttonActions?[mic] = action
+            settings.workspaces = [workspace]
+            XCTAssertThrowsError(try settings.validate())
+        }
+    }
+
+    func testWorkspaceActionDecoderRejectsHIDAndUnknownFields() throws {
+        for field in ["input", "usage", "script"] {
+            let data = Data("{\"button\":\"home\",\"single\":\"focusTarget\",\"\(field)\":null}".utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(ButtonActionMapping.self, from: data))
+        }
+        let valid = ButtonActionMapping(button: .back, single: .cancel, long: .stopTask, double: .actionPicker)
+        XCTAssertEqual(try JSONDecoder().decode(ButtonActionMapping.self, from: JSONEncoder().encode(valid)), valid)
+    }
+
+    func testCodingToolPresetsKeepButtonIntentionsAndRecognizeBothWorkBuddyApps() throws {
+        XCTAssertEqual(CodingToolPreset.allCases.count, 3)
+        XCTAssertEqual(CodingToolPreset.matching(bundleIdentifier: "com.openai.codex"), .codex)
+        XCTAssertEqual(CodingToolPreset.matching(bundleIdentifier: "com.anthropic.claudefordesktop"), .claude)
+        XCTAssertEqual(CodingToolPreset.matching(bundleIdentifier: "com.tencent.workbuddy.mac"), .workbuddy)
+        XCTAssertEqual(CodingToolPreset.matching(bundleIdentifier: "com.workbuddy.workbuddy-ai"), .workbuddy)
+        XCTAssertNil(CodingToolPreset.matching(bundleIdentifier: "com.apple.Terminal"))
+        XCTAssertNil(CodingToolPreset.matching(bundleIdentifier: "com.openai.codex.fake"))
+        for preset in CodingToolPreset.allCases {
+            XCTAssertFalse(preset.title.isEmpty)
+            XCTAssertEqual(preset.buttonActions, NativeSettings.defaultMappings.map(ButtonActionMapping.init))
+            XCTAssertEqual(Set(preset.buttonActions.map(\.button)), Set(RemoteButton.allCases))
+            var settings = NativeSettings.defaults
+            settings.workspaces = [WorkspaceProfile(name: preset.title, bundleIdentifier: try XCTUnwrap(preset.bundleIdentifiers.first),
+                                                    buttonActions: preset.buttonActions)]
+            try settings.validate()
+        }
+        XCTAssertEqual(RemoteButton.power.label, "电源")
+    }
+
     func testDefaultsRoundTripWithAllButtonsAndReservedMicrophone() throws {
         let settings = NativeSettings.defaults
         try settings.validate()

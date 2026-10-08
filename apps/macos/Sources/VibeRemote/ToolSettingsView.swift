@@ -19,7 +19,13 @@ struct ToolSettingsView: View {
                                 Text(tool.name).font(.headline)
                                 Text(tool.version.map { "已安装 · \($0)" } ?? "未检测到安装").font(.caption).foregroundStyle(.secondary)
                                 Text(tool.bundleIdentifier).font(.caption2).foregroundStyle(.tertiary).textSelection(.enabled)
-                                Button("添加工作区") { model.addWorkspace(tool) }.disabled(!model.canEdit)
+                                if let preset = CodingToolPreset.matching(bundleIdentifier: tool.bundleIdentifier) {
+                                    Text("\(preset.title) 默认按键 · 添加后可单独调整")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Button("使用默认方案添加工作区") { model.addWorkspace(tool) }.disabled(!model.canEdit)
+                                } else {
+                                    Button("添加工作区") { model.addWorkspace(tool) }.disabled(!model.canEdit)
+                                }
                             }
                             Spacer(minLength: 0)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
@@ -51,6 +57,7 @@ private struct WorkspaceEditor: View {
     @State private var preview: String
     @State private var thread: String
     @State private var stopping = false
+    @State private var applyingPreset = false
 
     init(model: ControlsModel, profile: WorkspaceProfile) {
         self.model = model; self.profile = profile
@@ -66,6 +73,38 @@ private struct WorkspaceEditor: View {
                 Text("工作区设置").font(.title2.bold())
                 Spacer()
                 Button("复制工作区") { model.duplicateWorkspace(current) }.disabled(!model.canEdit)
+            }
+            if let preset = CodingToolPreset.matching(bundleIdentifier: current.bundleIdentifier) {
+                GroupBox("\(preset.title) 按键方案") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(current.buttonActions == nil ? "沿用已有通用配置；可主动应用本工具默认方案。" :
+                             current.buttonActions == preset.buttonActions && current.shortcuts.isEmpty ?
+                             "已使用默认方案；动作只作用于这个工作区。" : "已使用自定义方案；动作只作用于这个工作区。")
+                            .font(.callout)
+                        HStack {
+                            Button("应用默认方案") { applyingPreset = true }.disabled(!model.canEdit)
+                            Button("编辑本工作区按键") { model.page = .buttons }
+                        }
+                        DisclosureGroup("查看默认按键对照") {
+                            Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 7) {
+                                GridRow {
+                                    Text("实体按键").bold(); Text("单击").bold(); Text("按住 / 长按").bold()
+                                }
+                                ForEach(preset.buttonActions, id: \.button) { action in
+                                    GridRow {
+                                        Text(action.button.label)
+                                        Text(action.button == .mic ? "—" : action.button == .ok ? "确认选择 / 预览并确认发送" : action.single.label)
+                                        Text(action.button == .mic ? "按住说话，松开成稿" :
+                                             action.long?.label ?? (action.single.allowsRepeat ? "持续\(action.single.label)" : "—"))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }.font(.caption).padding(.top, 8)
+                        }
+                        Text("三种工具保持相同按键习惯，目标跟随工作区。默认不启用双击。语音专用键无需 HID 学习；其他实体键仍需学习，目标输入与发送/停止控件仍需绑定。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                }
             }
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -144,6 +183,12 @@ private struct WorkspaceEditor: View {
             Button("取消", role: .cancel) { }
             Button("停止任务") { model.perform(.stopTask) }
         } message: { Text("只有实际会话和停止生成控件通过实时检查时，才会执行。") }
+        .alert("应用当前工具的默认按键方案？", isPresented: $applyingPreset) {
+            Button("取消", role: .cancel) { }
+            Button("应用") { model.applyToolPreset(to: current) }
+        } message: {
+            Text("将恢复「\(current.name)」的按键动作，并将自定义工具快捷键恢复为默认辅助功能方式。其他工作区、已学习的实体键值、绑定和草稿会保留；上一份配置会备份。")
+        }
     }
 }
 

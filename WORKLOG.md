@@ -450,3 +450,40 @@ highlight and large Vibe lettering. Saved the unmodified output and full prompt 
 apps/macos/Packaging/Artwork/Proposals. sips confirms 1254 × 1254 pixels and alpha.
 This is a design-only iteration: canonical icon, app version, package and local installation
 were not changed. No runtime tests are needed for a separate PNG and design record.
+
+## 2026-10-08 — Pro 2 physical layout and coding-tool button schemes
+
+The user compared the generic diagram against the actual Pro 2 and requested default
+button configurations for Codex, Claude and WorkBuddy. Replaced the visual arrangement
+with the actual power/mic row, segmented direction ring and OK, back/home/menu left,
+joined volume rocker and TV right. Physical names are separated from actions (power
+is now labelled 电源). All 13 buttons retain selection and press feedback.
+
+Added three tool presets covering four observed bundle identities. Defaults preserve the
+fixed button intentions and use the existing AX adapter rather than assumed keycodes.
+New profiles have independent semantic buttonActions; legacy profiles retain global
+actions until explicitly edited. HID calibration remains global. Action-only reset retains
+calibration and shortcuts; explicit tool-preset restore also resets optional shortcuts to
+the default AX method while preserving bindings, drafts and other workspaces. Added
+visible add/apply/edit controls and a default-action table, plus native setup instructions.
+
+First reproduced two failed assertions showing edits leaked between workspaces, then
+implemented scoped display/edit/dispatch. Independent review found a resolved event batch
+could retain old actions after its first event switched workspaces; reproduced timer and
+input cases, then added a batch workspace guard. Final verification: 54 core tests,
+46 integration scenarios / 149 assertions, 15 settings assertions, 144 adapter assertions,
+30 Python tests and neutral template validation all passed. Release build, plist and diff
+checks passed. Independent code review found no remaining actionable issue. Production
+views were rendered via NSHostingView with isolated fake services at ordinary and minimum
+740-point widths; no layout overlap or overflow observed. This is not physical hit-testing,
+HID/audio acceptance or actual AI tool verification.
+
+Built 0.2.3/build 6 at ~/Downloads/VibeRemote-0.2.3-System-20261008/
+VibeRemote-0.2.3-arm64.pkg (2,713,828 bytes). Independently expanded and verified version,
+LocalSystem-only domain, /Applications payload location, canonical icon bytes, strict app
+signature and SHA-256 0a401aa0a130d13cd9f964335332351f64aef4278c7b426efdc0bbd20b016dc7.
+App remains ad-hoc signed; package unsigned/unnotarized. Native inspection of the running
+system 0.2.2 app failed with a closed-pipe error, including after resetting the UI tool;
+Finder was readable. No drafts were assumed empty, no app was quit, and no installed
+bundle, local settings or system permissions were changed. STATUS.md and .project-pulse/
+remain untouched. The earlier icon proposal remains separate from the canonical app icon.

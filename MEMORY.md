@@ -137,3 +137,16 @@ the user's 2026-10-08 system Applications requirement. Other packaging safeguard
 - The final 0.2.2 icon follows the user's Pro 2 hardware photograph and adds a large mint
   Vibe wordmark for Dock recognition. Keep alpha and mechanical ICNS conversion; retain the
   earlier icon variants. The photo itself is not bundled and Xiaomi/MI wordmarks are omitted.
+
+## 2026-10-08 — Pro 2 layout and tool presets
+
+- Match the actual Pro 2 hardware in the interactive diagram: power/mic at top,
+  circular d-pad, back/home/menu left, vertical volume rocker/TV right.
+- Codex, Claude Desktop and both WorkBuddy identities use consistent default button
+  intentions and independently bound workspaces. Do not invent raw HID values or tool shortcuts.
+- In 0.2.3, optional workspace buttonActions override semantic actions only. HID calibration
+  stays global. Old schema-1 profiles without overrides preserve their prior behavior.
+- Applying a preset is explicit and restores that workspace's actions and default AX method;
+  retain learned inputs, bindings, other workspaces and drafts. Action-only reset retains shortcuts too.
+- Discard remaining events in a resolved gesture batch after a workspace switch.
+- New configurations containing buttonActions require 0.2.3+; retain backups before downgrading.

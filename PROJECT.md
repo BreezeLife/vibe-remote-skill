@@ -21,6 +21,9 @@ tool adapters. Presets identify Codex, Claude Desktop and two WorkBuddy applicat
 custom .app bindings are also supported. Input learning and exclusive suppression must
 be verified on the actual remote; AX focus/input/send/stop capabilities require usable
 live app metadata. A preset or build does not establish physical or tool acceptance.
+Version 0.2.3 matches the Pro 2 physical layout and supplies Codex, Claude and WorkBuddy
+presets. Workspace actions are independent overrides; calibrated HID remains shared.
+Legacy profiles retain their global actions until explicitly edited or given a preset.
 No audio or transcripts are persisted. Doubao/Typeless virtual microphone remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.

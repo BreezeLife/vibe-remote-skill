@@ -24,6 +24,29 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 This separate design output has not replaced the canonical icon or installed 0.2.2 bundle.
 
+## 0.2.3 — Pro 2 button layout and tool defaults
+
+- [x] Match all 13 physical keys: power/mic, continuous d-pad, back/home/menu, volume rocker/TV.
+- [x] Add Codex, Claude Desktop and WorkBuddy default schemes, covering both WorkBuddy identities.
+- [x] Store workspace action overrides separately from shared HID calibration; retain legacy configuration.
+- [x] Preserve drafts, bindings and other workspaces when applying presets or resetting actions.
+- [x] Drop old-workspace events remaining in an already resolved gesture batch after a switch.
+- [x] Pass 54 core tests; 46 integration scenarios / 149 assertions; 15 store and 144 adapter assertions;
+  all 30 Python tests and neutral config validation. Regression failures observed before both fixes.
+- [x] Review production-view renders at 940/1040 and minimum 740 point widths; no overlap/overflow.
+  These use isolated fake services and configuration, not actual tool/device state.
+- [x] Build and independently verify 0.2.3 / build 6 system-domain package, payload and signature.
+- [ ] Replace the currently running 0.2.2 after current drafts are confirmed safe to close.
+- [ ] Physically verify all keys and actual Codex/Claude/WorkBuddy bindings and actions.
+
+Artifact: ~/Downloads/VibeRemote-0.2.3-System-20261008/VibeRemote-0.2.3-arm64.pkg
+(2,713,828 bytes; arm64, macOS 13+; LocalSystem only; /Applications).
+SHA-256: 0a401aa0a130d13cd9f964335332351f64aef4278c7b426efdc0bbd20b016dc7.
+Package is unsigned/unnotarized with an ad-hoc-signed app. The running system bundle remains
+0.2.2; native window inspection returned a closed-pipe error even after a reset, so no draft
+emptiness was inferred and no app was quit or replaced. New workspace buttonActions require
+0.2.3+; old configuration stays readable, and pre-change settings are backed up when saved.
+
 ## 0.2.2 — shared Applications and Pro 2 + Vibe icon
 
 - [x] Move the verified app to the shared /Applications directory requested by the user.

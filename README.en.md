@@ -11,6 +11,9 @@ The native app receives remote ATVV audio directly, transcribes it through Apple
 Speech, and keeps separate editable drafts per workspace. Version 0.2 adds visual button
 configuration, calibrated HID capture and guarded desktop tool actions. It requires macOS
 13+ and Xcode Command Line Tools, with no third-party app or virtual driver.
+Version 0.2.3 matches the Pro 2 physical button layout and includes Codex, Claude and
+WorkBuddy action presets. Actions belong to each workspace; learned HID keys stay shared.
+Existing profiles keep their configuration until a preset is explicitly applied or actions are edited.
 
 ```sh
 bash scripts/test_macos_core.sh

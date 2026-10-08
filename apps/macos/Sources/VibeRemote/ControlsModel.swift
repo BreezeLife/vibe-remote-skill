@@ -105,7 +105,8 @@ final class ControlsModel: ObservableObject {
     }
 
     var workspace: WorkspaceProfile? { settings.workspaces.first { $0.id == voice.workspaceID } }
-    var mapping: ButtonMapping { settings.mappings.first { $0.button == selectedButton }! }
+    var mapping: ButtonMapping { settings.effectiveMapping(for: selectedButton, workspaceID: voice.workspaceID) }
+    var buttonConfigurationScope: String { workspace?.name ?? "通用配置（未绑定工作区）" }
     var canEdit: Bool { !voice.isBusy && !operationInProgress }
     var accessibilityGranted: Bool { adapter.permissionGranted }
     var safety: ActionSafety {
@@ -147,19 +148,61 @@ final class ControlsModel: ObservableObject {
 
     @discardableResult
     func updateMapping(_ edit: (inout ButtonMapping) -> Void) -> Bool {
-        updateSettings { settings in
+        let before = mapping
+        var edited = before
+        edit(&edited)
+        guard edited.button == selectedButton else { return false }
+        return updateSettings { settings in
             guard let i = settings.mappings.firstIndex(where: { $0.button == selectedButton }) else { return }
-            edit(&settings.mappings[i])
+            // Calibration belongs to the device; actions belong to the chosen workspace.
+            settings.mappings[i].input = edited.input
+            if edited.input?.supportsHold == false { settings.mappings[i].long = nil }
+            guard before.single != edited.single || before.long != edited.long || before.double != edited.double else { return }
+            if let index = settings.workspaces.firstIndex(where: { $0.id == voice.workspaceID }) {
+                var actions = settings.workspaces[index].buttonActions ?? settings.mappings.map(ButtonActionMapping.init)
+                guard let actionIndex = actions.firstIndex(where: { $0.button == selectedButton }) else { return }
+                // Preserve inactive long-press intentions unless that field was explicitly edited.
+                if before.single != edited.single { actions[actionIndex].single = edited.single }
+                if before.long != edited.long { actions[actionIndex].long = edited.long }
+                if before.double != edited.double { actions[actionIndex].double = edited.double }
+                settings.workspaces[index].buttonActions = actions
+            } else {
+                settings.mappings[i] = edited
+            }
         }
     }
-    func restoreButtonDefaults() { updateSettings { $0.mappings = NativeSettings.defaults.mappings } }
+    func restoreButtonDefaults() {
+        updateSettings { config in
+            if let index = config.workspaces.firstIndex(where: { $0.id == voice.workspaceID }) {
+                config.workspaces[index].buttonActions = NativeSettings.defaultMappings.map(ButtonActionMapping.init)
+            } else {
+                config.mappings = NativeSettings.defaultMappings.map { original in
+                    var restored = original
+                    restored.input = config.mappings.first { $0.button == original.button }?.input
+                    if restored.input?.supportsHold == false { restored.long = nil }
+                    return restored
+                }
+            }
+        }
+    }
+    @discardableResult
+    func applyToolPreset(to profile: WorkspaceProfile) -> Bool {
+        guard let current = settings.workspaces.first(where: { $0.id == profile.id }),
+              let preset = CodingToolPreset.matching(bundleIdentifier: current.bundleIdentifier) else { return false }
+        return updateSettings { config in
+            guard let index = config.workspaces.firstIndex(where: { $0.id == current.id }) else { return }
+            config.workspaces[index].buttonActions = preset.buttonActions
+            config.workspaces[index].shortcuts = []
+        }
+    }
     func updateWorkspace(_ proposed: WorkspaceProfile) {
         updateSettings { config in
             if let index = config.workspaces.firstIndex(where: { $0.id == proposed.id }) { config.workspaces[index] = proposed }
         }
     }
     func addWorkspace(_ tool: InstalledTool) {
-        let profile = WorkspaceProfile(name: tool.name, bundleIdentifier: tool.bundleIdentifier, appPath: tool.appPath)
+        let profile = WorkspaceProfile(name: tool.name, bundleIdentifier: tool.bundleIdentifier, appPath: tool.appPath,
+                                       buttonActions: CodingToolPreset.matching(bundleIdentifier: tool.bundleIdentifier)?.buttonActions)
         if updateSettings({ $0.workspaces.append(profile) }) { selectWorkspace(profile.id) }
     }
     func duplicateWorkspace(_ source: WorkspaceProfile) {
@@ -273,9 +316,10 @@ final class ControlsModel: ObservableObject {
                 learningButton = nil
                 calibrationDown = nil
                 selectedButton = button
-                let saved = updateMapping { mapping in
-                    mapping.input = learned
-                    if !learned.supportsHold { mapping.long = nil }
+                let saved = updateSettings { config in
+                    guard let index = config.mappings.firstIndex(where: { $0.button == button }) else { return }
+                    config.mappings[index].input = learned
+                    if !learned.supportsHold { config.mappings[index].long = nil }
                 }
                 if !saved { return }
                 status = "已学习 \(button.label)：usage \(input.usagePage):\(input.usage)，\(learned.supportsHold ? "支持长按" : "仅短按；可重新学习长按")。"
@@ -290,7 +334,7 @@ final class ControlsModel: ObservableObject {
             return
         }
         guard mappingsEnabled, hid.isExclusive, suppressionConfirmed, !learningTool else { return }
-        var routedMapping = mapping
+        var routedMapping = settings.effectiveMapping(for: mapping.button, workspaceID: voice.workspaceID)
         if showingWorkspaces || showingActions || pendingSend != nil {
             // Physical navigation remains available even if its normal action is disabled/remapped.
             routedMapping.single = .actionPicker
@@ -298,10 +342,8 @@ final class ControlsModel: ObservableObject {
             routedMapping.double = nil
             routedMapping.input?.supportsHold = false
         }
-        for event in engine.process(button: mapping.button, isDown: down,
-                                    at: ProcessInfo.processInfo.systemUptime, mapping: routedMapping) {
-            route(event)
-        }
+        route(engine.process(button: mapping.button, isDown: down,
+                             at: ProcessInfo.processInfo.systemUptime, mapping: routedMapping))
     }
     private func tick() {
         let now = ProcessInfo.processInfo.systemUptime
@@ -315,7 +357,15 @@ final class ControlsModel: ObservableObject {
             engine.reset()
             return
         }
-        for event in engine.advance(to: now) { route(event) }
+        route(engine.advance(to: now))
+    }
+    private func route(_ events: [GestureTrigger]) {
+        let sourceWorkspace = voice.workspaceID
+        for event in events {
+            // Resetting the engine cannot retract a batch it has already returned.
+            guard voice.workspaceID == sourceWorkspace else { return }
+            route(event)
+        }
     }
 
     func hasLearnedInput(for id: UUID) -> Bool { learnedInputs[id] != nil }
