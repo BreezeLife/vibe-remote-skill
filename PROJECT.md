@@ -54,8 +54,13 @@ Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
 `bash scripts/test_macos_model.sh`, `bash scripts/test_macos_hid.sh`,
 `bash scripts/test_macos_tools.sh`, `bash scripts/test_macos_controls.sh`,
 `bash scripts/test_macos_integration.sh` and `bash scripts/build_macos_app.sh`.
-`bash scripts/package_macos_app.sh` produces a current-user `.pkg` and SHA-256 file;
-it installs the app under ~/Applications without a driver or privileged installer script.
+Normal builds output to ~/Library/Caches/VibeRemote/Build without writing to system
+application directories. `bash scripts/package_macos_app.sh` stages the app in a local
+temporary directory and produces a `.pkg` plus SHA-256 file. From 0.2.2, the package uses
+only the LocalSystem domain and installs to /Applications/Vibe Remote.app through the
+GUI Installer or `sudo installer -pkg <package> -target /`. This follows the user's explicit
+2026-10-08 requirement and supersedes the earlier ~/Applications installation policy.
+The package includes no driver or privileged installer script.
 Existing skill checks use Python unittest discovery
 and the config validator. CI checks both native and Python paths.
 

@@ -397,3 +397,46 @@ or restarted. Read-only metadata now finds 0.2.0 / build 3 at /Applications/Vibe
 the earlier ~/Applications copy is absent. This is not evidence of live permission or
 draft state. Updated TASKS to distinguish this new evidence from the earlier preservation
 record. Unrelated STATUS.md and .project-pulse/ remain untouched.
+
+
+## 2026-10-08 — shared Applications install and Pro 2 + Vibe branding
+
+The user explicitly required the shared /Applications destination, then asked to base the
+icon on their Xiaomi Remote 2 Pro photo and emphasize the Vibe name at Dock size. Read the
+project records and performed read-only packaging review. This requirement supersedes the
+old current-user domain. Distribution now permits only LocalSystem; install-location stays
+/Applications, with strict identity, version checks, no relocation and must-close intact.
+Normal developer builds now output to ~/Library/Caches/VibeRemote/Build; package staging
+remains outside iCloud and CI requires no privileged installation. Updated docs, welcome
+and completion pages, durable decisions and the CI step label. Version is 0.2.2 / build 5.
+
+Used built-in image_gen for two requested refinements: silver Pro 2 hardware following
+the supplied photo, then a prominent mint Vibe wordmark. Preserved both previous designs
+and all prompts in Packaging/Artwork; source remains 1254-square RGBA with real alpha.
+The product photo is not distributed. Rebuilt ICNS and inspected 64/128 pixel previews.
+
+Built ~/Downloads/VibeRemote-0.2.2-System-20261008-202916/VibeRemote-0.2.2-arm64.pkg
+(2,651,235 bytes). Independently verified the exact LocalSystem domain, /Applications
+payload location, must-close metadata, version/build, installed icon bytes, expanded strict
+signature and SHA-256:
+9197c10a25b6d8a0aff1e1b4ff41a3192baca6800fa56487fd41c984af5a06e8.
+All 30 Python tests, neutral config validation and shell/plist/diff checks passed; independent
+review found no implementation issues. No voice, HID, tool or other runtime source changed.
+App remains ad-hoc signed and package unsigned/unnotarized.
+
+Initially verified and moved the installed 0.2.1 from ~/Applications to /Applications,
+whose destination was absent and writable, while preserving the running process. Native
+window automation then failed, so no draft emptiness was inferred. After the user explicitly
+confirmed “草稿已保存，可以退出并更新”, ensured the old PID had exited, retained the old
+bundle at ~/Library/Caches/VibeRemote/PreviousVersions/
+VibeRemote-0.2.1-20261008-204332.app.backup, and installed the already-verified expanded
+0.2.2 payload in the writable /Applications directory. This was an app-bundle deployment,
+not a root Installer transaction; no new system package receipt is claimed. Configuration
+files and system privacy permissions were untouched.
+
+Repeated disk verification found the real /Applications/Vibe Remote.app (not a symlink),
+0.2.2/build5, a valid signature, and the exact Pro 2 + Vibe ICNS; ~/Applications/Vibe Remote.app
+is absent. Reset native UI automation, located the system bundle in Finder and opened it.
+The actual native window displayed “开发预览 0.2.2” with paused mappings and no connected
+remote. This verifies launch/location, not hardware, speech or tool capabilities.
+Unrelated STATUS.md and .project-pulse/ remain untouched.

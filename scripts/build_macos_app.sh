@@ -9,8 +9,9 @@ fi
 VIBE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VIBE_PACKAGE="$VIBE_ROOT/apps/macos"
 # File Provider/iCloud can reattach FinderInfo after signing. Keep the running
-# bundle outside a cloud-synced checkout; CI may choose a temporary output folder.
-VIBE_OUTPUT_DIR="${VIBE_OUTPUT_DIR:-$HOME/Applications}"
+# bundle outside a cloud-synced checkout. Building never installs into /Applications;
+# use the system-domain installer for that. CI may choose a temporary output folder.
+VIBE_OUTPUT_DIR="${VIBE_OUTPUT_DIR:-$HOME/Library/Caches/VibeRemote/Build}"
 VIBE_APP="$VIBE_OUTPUT_DIR/Vibe Remote.app"
 VIBE_BUILD_MARKER="$VIBE_APP/Contents/Resources/.vibe-remote-build"
 if [[ -L "$VIBE_APP" ]] || { [[ -e "$VIBE_APP" ]] && [[ ! -f "$VIBE_BUILD_MARKER" ]]; }; then

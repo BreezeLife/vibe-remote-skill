@@ -16,8 +16,12 @@ Vibe Remote 是我们自己的 macOS 遥控器应用。0.2 开发预览提供直
 ```sh
 bash scripts/test_macos_core.sh
 bash scripts/build_macos_app.sh
-open "$HOME/Applications/Vibe Remote.app"
+open "$HOME/Library/Caches/VibeRemote/Build/Vibe Remote.app"
 ```
+
+普通构建输出到本机缓存目录，不需要管理员权限。日常安装使用 `.pkg`：从 0.2.2 起，
+安装器经管理员授权，统一安装到 `/Applications/Vibe Remote.app`。
+开发副本与已安装的应用请保持只运行一份；完整安装命令见下方原生应用上手指南。
 
 点击连接与语音授权，按住遥控器语音键说话，松开等待草稿，检查后复制。
 默认本机语音识别；所选语言不支持时会提示，可自行选择允许 Apple 在线识别。

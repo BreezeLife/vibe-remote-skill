@@ -37,8 +37,8 @@ if [[ "$(lipo -archs "$package_app/Contents/MacOS/VibeRemote")" != "$package_arc
     exit 1
 fi
 
-# In a current-user domain /Applications resolves under that user's home.
-# Disable relocation so LaunchServices cannot choose an old cloud-workspace copy.
+# Install to the shared /Applications directory on the startup volume.
+# Disable relocation so LaunchServices cannot choose a previous user/cloud copy.
 pkgbuild --root "$package_stage/payload" \
     --component-plist "$package_resources/InstallerComponents.plist" \
     --identifier io.github.BreezeLife.VibeRemote.installer \
@@ -52,9 +52,9 @@ productbuild --distribution "$package_stage/Distribution.xml" \
     --resources "$package_resources/InstallerResources" \
     --package-path "$package_stage" "$package_stage/$package_name"
 
-# Install only via the product archive, whose domains exclude system-wide paths.
+# Install only via the product archive, which permits the local system domain.
 package_domains="$(installer -dominfo -pkg "$package_stage/$package_name")"
-if [[ "$package_domains" != CurrentUserHomeDirectory ]]; then
+if [[ "$package_domains" != LocalSystem ]]; then
     printf 'Unexpected installation domains: %s\n' "$package_domains" >&2
     exit 1
 fi
@@ -65,5 +65,5 @@ cp "$package_stage/$package_name" "$package_output/$package_name"
 (cd "$package_output" && shasum -a 256 "$package_name" > "$package_name.sha256")
 printf 'Package: %s\n' "$package_output/$package_name"
 printf 'Checksum: %s\n' "$package_output/$package_name.sha256"
-printf 'Install: installer -pkg "%s" -target CurrentUserHomeDirectory\n' "$package_output/$package_name"
+printf 'Install: sudo installer -pkg "%s" -target /\n' "$package_output/$package_name"
 printf 'Development package: app is ad-hoc signed; installer is unsigned and not notarized.\n'

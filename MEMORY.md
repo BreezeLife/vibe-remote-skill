@@ -72,6 +72,9 @@
 
 ## 2026-10-05 — installer distribution
 
+Historical decision: the installation domain and destination below were superseded by
+the user's 2026-10-08 system Applications requirement. Other packaging safeguards remain.
+
 - Distribute a standard current-user `.pkg`, installing only to ~/Applications.
   Disable system/other-volume domains and bundle relocation so an update cannot select
   the old cloud-workspace bundle. Require closing Vibe Remote before installing.
@@ -112,3 +115,25 @@
   Regenerate ICNS with scripts/build_macos_icon.sh; normal builds consume the checked-in
   ICNS and need no image-generation service. The design is a white remote with mint audio
   bars on a graphite tile; no third-party branding. App icon metadata starts in 0.2.1.
+  That visual is preserved as AppIcon-v1.png; the later user-requested Pro 2 + Vibe design
+  replaces it from 0.2.2, with both edit prompts in Artwork/README.md.
+
+## 2026-10-08 — system Applications installation
+
+- The user explicitly requires the shared system Applications directory, /Applications,
+  rather than ~/Applications. This supersedes the current-user installation decision
+  recorded on 2026-10-05; preserve that older entry as history.
+- Starting with 0.2.2 / build 5, packages allow only LocalSystem and install to
+  /Applications/Vibe Remote.app. Use the GUI Installer with administrator authorization,
+  or `sudo installer -pkg <package> -target /`. Keep current-user/other-volume domains
+  disabled, bundle relocation disabled, and existing identity/version/close-app checks.
+- Ordinary builds default to ~/Library/Caches/VibeRemote/Build so development does not
+  write to system Applications or require administrator access. Package builds continue
+  staging signed bundles in a local temporary directory outside iCloud.
+- Moving the app does not move native settings: they remain per user under
+  ~/Library/Application Support/Vibe Remote. Preserve configuration and in-memory drafts;
+  installing an update still requires copying any needed draft before exiting the app.
+
+- The final 0.2.2 icon follows the user's Pro 2 hardware photograph and adds a large mint
+  Vibe wordmark for Dock recognition. Keep alpha and mechanical ICNS conversion; retain the
+  earlier icon variants. The photo itself is not bundled and Xiaomi/MI wordmarks are omitted.

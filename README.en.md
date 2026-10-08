@@ -15,8 +15,13 @@ configuration, calibrated HID capture and guarded desktop tool actions. It requi
 ```sh
 bash scripts/test_macos_core.sh
 bash scripts/build_macos_app.sh
-open "$HOME/Applications/Vibe Remote.app"
+open "$HOME/Library/Caches/VibeRemote/Build/Vibe Remote.app"
 ```
+
+Normal builds write to the local cache directory without administrator access. For everyday
+use, install the `.pkg`: version 0.2.2 onward uses administrator authorization and installs
+only to `/Applications/Vibe Remote.app`. Run one copy at a time, either the development
+build or the installed app. See the native setup guide below for installation commands.
 
 On-device recognition is required by default. An explicit opt-in allows Apple's
 speech service when local recognition is unavailable. The app does not persist audio

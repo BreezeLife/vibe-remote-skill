@@ -12,10 +12,29 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Installed metadata verified on 2026-10-08: /Applications/Vibe Remote.app, 0.2.0 / build 3.
-The earlier ~/Applications copy is absent. This records the bundle location/version only,
-not current draft, permission, connection or running state.
+Installed and opened on 2026-10-08: /Applications/Vibe Remote.app, 0.2.2 / build 5.
+The ~/Applications copy is absent. The actual app window displayed version 0.2.2; its icon
+matches the final Pro 2 + Vibe asset. Hardware and tool capability acceptance remain separate.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.2 — shared Applications and Pro 2 + Vibe icon
+
+- [x] Move the verified app to the shared /Applications directory requested by the user.
+- [x] Make future packages LocalSystem-only, retain identity/version/nonrelocation/close checks.
+- [x] Keep development builds in a user cache; update installation docs and CI package step.
+- [x] Generate the requested Pro 2 reference icon and prominent Vibe wordmark; preserve earlier designs.
+- [x] Build and independently verify system-domain installer, payload path, final icon, signature and SHA.
+- [x] Pass all 30 Python tests, neutral config validation and shell/plist/diff checks; code review passed.
+- [x] After the user confirmed drafts saved, install 0.2.2 into /Applications with a recoverable old bundle.
+- [x] Open the actual system app and observe its 0.2.2 window; verify no personal Applications duplicate.
+
+Artifact: ~/Downloads/VibeRemote-0.2.2-System-20261008-202916/VibeRemote-0.2.2-arm64.pkg
+(2,651,235 bytes; 0.2.2 / build 5; arm64, macOS 13+). Installer domain: LocalSystem only.
+The app remains ad-hoc signed; package unsigned/unnotarized. The local update deployed the
+verified expanded payload into the writable system directory after preserving the old bundle;
+it did not run a root Installer transaction or create a new system package receipt.
+Backup: ~/Library/Caches/VibeRemote/PreviousVersions/VibeRemote-0.2.1-20261008-204332.app.backup.
+Native settings remain per-user and were not modified. No privacy permissions were granted.
 
 ## 0.2.1 — app icon and configuration guidance
 
@@ -25,12 +44,12 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 - [x] Build release and installer; verify expanded icon matches source ICNS, all 10 sizes,
   bundle version/icon declaration, strict app signature and independent archive checksum.
 - [x] Pass all 30 Python checks, neutral config validation, shell/plist syntax and diff checks.
-- [ ] Install the icon update; this turn does not replace or restart the user's app.
+- [x] Verify the user-installed 0.2.1 bundle/receipt; later superseded locally by 0.2.2 above.
 
 Artifact: ~/Downloads/VibeRemote-0.2.1-20261008-194907/VibeRemote-0.2.1-arm64.pkg
 (2,488,333 bytes; version 0.2.1 / build 4). App is ad-hoc signed; package unsigned/unnotarized.
-The installer retains the current-user ~/Applications destination. The observed installed
-0.2.0 app is in /Applications; avoid launching both copies after a future update.
+This historical package uses the current-user ~/Applications destination. Use the new
+0.2.2 system package above for subsequent installations.
 No runtime voice, button or AX adapter behavior changed in 0.2.1.
 
 ## 0.2 — visual buttons and coding tools

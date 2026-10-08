@@ -6,11 +6,14 @@
 
 ## 安装包
 
-`.pkg` 安装到当前用户的 `~/Applications/Vibe Remote.app`，无需管理员权限。
+从 0.2.2 起，`.pkg` 统一安装到系统应用程序目录 `/Applications/Vibe Remote.app`，
+通过 macOS 安装器授权安装。此位置按用户 2026-10-08 的明确要求，替代此前的
+`~/Applications` 当前用户安装方案。
 先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
 Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
 
-本次生成的是 **0.2.1 / Apple Silicon（arm64）/ macOS 13+** 开发包，新增应用图标。
+当前打包版本为 **0.2.2 / build 5 / macOS 13+**，使用银色 Pro 2 遥控器＋醒目 Vibe 字样的新图标。
+安装包按构建机器的架构生成；Apple Silicon 对应 `arm64`。
 应用使用本地 ad-hoc 签名，安装包尚未 Developer ID 签名或 Apple 公证。
 安装不自动授予蓝牙或语音识别权限，也不安装其他桥接程序或驱动。
 
@@ -24,14 +27,16 @@ bash scripts/package_macos_app.sh
 
 ```sh
 VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
-installer -pkg "$HOME/Downloads/VibeRemote-0.2.1-arm64.pkg" -target CurrentUserHomeDirectory
-open "$HOME/Applications/Vibe Remote.app"
+sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.2-arm64.pkg" -target /
+open "/Applications/Vibe Remote.app"
 ```
 
 重建时若同名包或校验文件已存在，脚本会拒绝覆盖；选择新的输出目录即可。
-打包先在本地临时目录构建，再校验唯一安装域及解包后的签名。安装器禁止重定位到
+也可以双击 `.pkg`，按图形安装器的提示完成管理员授权，无需在终端安装。
+打包先在本地临时目录构建，再校验唯一安装域 `LocalSystem` 及解包后的签名。
+安装包仅允许安装到系统卷，不提供当前用户目录或其他磁盘选项。安装器禁止重定位到
 历史工作目录副本，拒绝覆盖不同 Bundle ID，并检查已有应用版本，避免降级。
-用户域、退出要求与最低系统版本采用 [Apple Installer Distribution 配置](https://developer.apple.com/library/archive/documentation/DeveloperTools/Reference/DistributionDefinitionRef/Chapters/Distribution_XML_Ref.html)。
+系统安装域、退出要求与最低系统版本采用 [Apple Installer Distribution 配置](https://developer.apple.com/library/archive/documentation/DeveloperTools/Reference/DistributionDefinitionRef/Chapters/Distribution_XML_Ref.html)。
 
 ## 从源码构建与打开
 
@@ -46,11 +51,14 @@ bash scripts/test_macos_tools.sh
 bash scripts/test_macos_controls.sh
 bash scripts/test_macos_integration.sh
 bash scripts/build_macos_app.sh
-open "$HOME/Applications/Vibe Remote.app"
+open "$HOME/Library/Caches/VibeRemote/Build/Vibe Remote.app"
 ```
 
-脚本将本机架构的 `.app` 构建到 `~/Applications/Vibe Remote.app`，使用本地 ad-hoc 签名，
-尚未 Developer ID 签名或公证。构建器只更新带有自身构建标记的产物；已有其他同名应用
+普通构建将本机架构的 `.app` 输出到 `~/Library/Caches/VibeRemote/Build/Vibe Remote.app`，
+无需管理员权限，也不写入系统 `/Applications`。日常安装使用上面的 `.pkg` 流程；
+缓存目录的副本仅用于开发检查，避免与已安装的副本同时运行。
+应用使用本地 ad-hoc 签名，尚未 Developer ID 签名或公证。
+构建器只更新带有自身构建标记的产物；已有其他同名应用
 会被保留并报错。可用 `VIBE_OUTPUT_DIR` 指定输出目录，请选择不受 iCloud 同步的位置。
 iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不应在同步目录运行 `.app`。
 构建不安装驱动、不修改系统音频设备、不申请辅助功能权限。为保证隐私权限关联稳定，
