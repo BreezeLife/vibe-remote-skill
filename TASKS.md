@@ -17,6 +17,13 @@ The ~/Applications copy is absent. The actual app window displayed version 0.2.2
 matches the final Pro 2 + Vibe asset. Hardware and tool capability acceptance remain separate.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
+## Latest icon design proposal
+
+- [x] Generate the requested remote close-up + prominent Vibe professional icon.
+- [x] Save the 1254 × 1254 PNG with alpha and full prompt in Packaging/Artwork/Proposals.
+
+This separate design output has not replaced the canonical icon or installed 0.2.2 bundle.
+
 ## 0.2.2 — shared Applications and Pro 2 + Vibe icon
 
 - [x] Move the verified app to the shared /Applications directory requested by the user.

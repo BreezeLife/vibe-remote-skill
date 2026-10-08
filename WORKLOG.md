@@ -440,3 +440,13 @@ is absent. Reset native UI automation, located the system bundle in Finder and o
 The actual native window displayed “开发预览 0.2.2” with paused mappings and no connected
 remote. This verifies launch/location, not hardware, speech or tool capabilities.
 Unrelated STATUS.md and .project-pulse/ remain untouched.
+
+## 2026-10-08 — remote close-up + Vibe design output
+
+The user requested a professional app icon combining their cropped silver remote
+reference with the word Vibe. Used built-in image_gen to produce a single graphite
+rounded-square icon with an enlarged silver remote, directional ring, mint microphone
+highlight and large Vibe lettering. Saved the unmodified output and full prompt under
+apps/macos/Packaging/Artwork/Proposals. sips confirms 1254 × 1254 pixels and alpha.
+This is a design-only iteration: canonical icon, app version, package and local installation
+were not changed. No runtime tests are needed for a separate PNG and design record.
