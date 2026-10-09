@@ -32,7 +32,7 @@ swiftc -swift-version 5 -target "$integration_target" \
     "$integration_app/SpeechService.swift" "$integration_app/BluetoothService.swift" \
     "$integration_app/NativeSettingsStore.swift" "$integration_app/HIDRemoteInputService.swift" \
     "$integration_app/ToolAdapter.swift" "$integration_app/SystemVolume.swift" \
-    "$integration_app/ControlsModel.swift" \
+    "$integration_app/ControlsModel.swift" "$integration_app/CodexConversationCatalogService.swift" \
     "$integration_project_root/apps/macos/Tests/ControlsIntegrationChecks.swift" \
     -o "$integration_check_dir/ControlsIntegrationChecks"
 "$integration_check_dir/ControlsIntegrationChecks"

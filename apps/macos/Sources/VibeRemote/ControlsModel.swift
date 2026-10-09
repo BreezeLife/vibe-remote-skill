@@ -29,6 +29,14 @@ final class ControlsModel: ObservableObject {
     let hid: HIDRemoteInputService
     let adapter: ToolAdapter
     private let store: NativeSettingsStore
+    private let codexCatalog: CodexConversationListing
+    private var codexCatalogProfiles: [WorkspaceProfile] = []
+    private var lastCodexSession: [String: UUID] = [:]
+    @Published private(set) var codexSetupStatus = "点击一键配置，读取本机 Codex 会话并准备按键方案。"
+    @Published private(set) var codexConversations: [CodexConversation] = []
+    @Published private(set) var codexChecks: [String: String] = [:]
+    @Published var codexProjectPath = ""
+
     private let showWindowOverride: (() -> Void)?
     @Published private(set) var settings: NativeSettings
     @Published var page: Page = .dictation { didSet { engine.reset() } }
@@ -58,23 +66,35 @@ final class ControlsModel: ObservableObject {
     private var learnedInputs: [UUID: LearnedToolInput] = [:]
     private var learningTask: Task<Void, Never>?
     private var insertion: [UUID: (draft: String, text: String)] = [:]
+    // An attempted mutation may have succeeded even if readback or AX returns an error.
+    private var uncertainCodexInsertion = Set<UUID>()
+    private var codexSubmission: [UUID: (draft: String, confirmed: Bool)] = [:]
+    private var codexClearedAfterSubmission = Set<UUID>()
     private var activeOperation: Task<Void, Never>?
     private var operationGeneration = 0
     private var operationReview: DraftReview?
 
     init(voice: RemoteModel, store: NativeSettingsStore = NativeSettingsStore(),
          hid: HIDRemoteInputService? = nil, adapter: ToolAdapter? = nil,
-         showWindow: (() -> Void)? = nil) {
+         showWindow: (() -> Void)? = nil, codexCatalog: CodexConversationListing? = nil) {
         self.voice = voice
         self.store = store
+        self.codexCatalog = codexCatalog ?? CodexConversationCatalogService()
         self.showWindowOverride = showWindow
         self.hid = hid ?? HIDRemoteInputService()
         self.adapter = adapter ?? ToolAdapter()
         do { settings = try store.load() }
         catch { settings = .defaults; status = "配置未载入：\(error.localizedDescription)。原文件已保留，可导入有效配置。" }
+        codexCatalogProfiles = settings.workspaces.filter { $0.codexConversation != nil }
+        codexConversations = codexCatalogProfiles.compactMap(\.codexConversation)
         self.hid.onInput = { [weak self] input, down, time in self?.receive(input, down: down, time: time) }
         self.hid.onReset = { [weak self] in self?.resetInput() }
         self.hid.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        voice.$draft.sink { [weak self] draft in
+            guard let self, let id = self.voice.workspaceID, self.codexSubmission[id]?.confirmed == true,
+                  !draft.isBusy, !self.voice.isReceivingAudio, draft.text.isEmpty else { return }
+            self.codexClearedAfterSubmission.insert(id)
+        }.store(in: &cancellables)
         voice.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -118,10 +138,247 @@ final class ControlsModel: ObservableObject {
     func refreshTools() { installedTools = adapter.installedTools(); objectWillChange.send() }
     func requestAccessibility() { adapter.requestPermission(); objectWillChange.send() }
     func selectWorkspace(_ id: UUID?) {
+        if let id, settings.workspaces.first(where: { $0.id == id })?.codexConversation != nil {
+            openCodexSession(id)
+            return
+        }
+        selectWorkspaceLocally(id)
+    }
+    private func selectWorkspaceLocally(_ id: UUID?) {
         guard !operationInProgress, id == nil || settings.workspaces.contains(where: { $0.id == id }) else { return }
         guard voice.selectWorkspace(id) else { status = "收音和识别整理期间，工作区已锁定。"; return }
         pendingSend = nil
         engine.reset()
+    }
+
+    var codexProjectPaths: [String] {
+        Array(Set(codexCatalogProfiles.compactMap { $0.codexConversation?.projectPath })).sorted()
+    }
+    var codexSessionProfiles: [WorkspaceProfile] {
+        orderedCodexProfiles(in: codexProjectPath)
+    }
+    private func orderedCodexProfiles(in path: String) -> [WorkspaceProfile] {
+        codexCatalogProfiles.filter { $0.codexConversation?.projectPath == path }.sorted {
+            guard let a = $0.codexConversation, let b = $1.codexConversation else { return $0.name < $1.name }
+            return a.title == b.title ? a.id < b.id : a.title < b.title
+        }.map(latestCodexProfile)
+    }
+
+    private func latestCodexProfile(_ candidate: WorkspaceProfile) -> WorkspaceProfile {
+        guard var saved = settings.workspaces.first(where: { $0.id == candidate.id }) else { return candidate }
+        if saved.codexConversation != candidate.codexConversation || saved.appPath != candidate.appPath { saved.binding = nil }
+        saved.codexConversation = candidate.codexConversation
+        saved.codexThreadURL = candidate.codexThreadURL
+        saved.appPath = candidate.appPath
+        return saved
+    }
+
+    func configureCodex() {
+        guard canEdit else { return }
+        guard let app = adapter.installedTools().first(where: { $0.bundleIdentifier == "com.openai.codex" }),
+              let path = app.appPath else {
+            codexSetupStatus = "未找到 Codex 桌面版；安装后重新配置。"
+            codexChecks["installation"] = codexSetupStatus
+            return
+        }
+        codexChecks["installation"] = "已检测到 Codex 桌面版"
+        codexSetupStatus = "正在读取本机会话目录…"
+        pendingSend = nil
+        operationInProgress = true
+        operationGeneration += 1
+        let generation = operationGeneration
+        activeOperation = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishOperation() }
+            do {
+                let conversations = try await self.codexCatalog.listConversations(appPath: path)
+                try Task.checkCancellation()
+                guard self.operationGeneration == generation, !self.voice.isBusy else {
+                    throw ControlError.message("状态已变化；本次配置已取消。")
+                }
+                var profiles: [WorkspaceProfile] = []
+                for conversation in conversations {
+                    // A legacy/manual workspace must never donate its draft identity.
+                    let matches = self.settings.workspaces.filter {
+                        $0.codexConversation?.id == conversation.id &&
+                        $0.codexConversation?.projectPath == conversation.projectPath
+                    }
+                    guard matches.count <= 1 else {
+                        throw ControlError.message("同一会话存在多个配置；请先从已有工作区中明确选择。")
+                    }
+                    let cached = self.codexCatalogProfiles.first {
+                        $0.codexConversation?.id == conversation.id && $0.codexConversation?.projectPath == conversation.projectPath
+                    }
+                    var profile = matches.first ?? cached ?? WorkspaceProfile(
+                        name: String(("Codex · " + conversation.title).prefix(120)),
+                        bundleIdentifier: "com.openai.codex", appPath: path,
+                        buttonActions: CodingToolPreset.codexConversationActions)
+                    if profile.codexConversation != conversation { profile.binding = nil }
+                    profile.codexConversation = conversation
+                    profile.codexThreadURL = conversation.canonicalURL.absoluteString
+                    profile.appPath = path
+                    profiles.append(profile)
+                }
+                self.codexConversations = conversations
+                self.codexCatalogProfiles = profiles
+                if !self.codexProjectPaths.contains(self.codexProjectPath) {
+                    let selected = self.workspace?.codexConversation?.projectPath
+                    self.codexProjectPath = selected.flatMap { self.codexProjectPaths.contains($0) ? $0 : nil } ?? self.codexProjectPaths.first ?? ""
+                }
+                self.codexChecks["catalog"] = "已读取 \(conversations.count) 个本机会话；当前运行状态待检查"
+                self.codexSetupStatus = conversations.isEmpty ? "没有可用的本机会话。请先在 Codex 创建或打开一个会话，再重新配置。" :
+                    "方案已准备：上下切换同项目会话，左右切换项目。选择会话后自动配置并检查输入框。"
+            } catch is CancellationError { self.codexSetupStatus = "配置已取消，已有配置和草稿保留。" }
+            catch { self.codexSetupStatus = "未完成配置：\(error.localizedDescription)" }
+        }
+    }
+
+    func openCodexSession(_ id: UUID) {
+        guard canEdit,
+              let candidate = codexCatalogProfiles.first(where: { $0.id == id }) ?? settings.workspaces.first(where: { $0.id == id }),
+              let conversation = candidate.codexConversation else { return }
+        var proposed = settings
+        if let index = proposed.workspaces.firstIndex(where: { $0.id == id }) {
+            // Preserve customized mappings and shortcuts on later catalog refreshes.
+            proposed.workspaces[index] = latestCodexProfile(candidate)
+        } else { proposed.workspaces.append(candidate) }
+        guard proposed == settings || persist(proposed),
+              let profile = settings.workspaces.first(where: { $0.id == id }) else { return }
+        let changedSession = voice.workspaceID != id
+        selectWorkspaceLocally(id)
+        guard voice.workspaceID == id else { return }
+        if changedSession {
+            codexChecks["input"] = nil
+            codexChecks["submission"] = nil
+        }
+        codexProjectPath = conversation.projectPath
+        lastCodexSession[conversation.projectPath] = id
+        pendingSend = nil
+        engine.reset()
+        codexChecks["navigation"] = "已选择会话，正在检查实际窗口和输入框…"
+        installOperationGuard(profile, review: nil)
+        operationInProgress = true
+        activeOperation = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishOperation() }
+            do {
+                let binding = try await self.adapter.openCodexConversation(profile, knownConversations: self.codexConversations)
+                try Task.checkCancellation()
+                guard !self.voice.isBusy, self.workspace == profile else {
+                    throw ControlError.message("切换期间目标或收音状态已变化；草稿保留，未继续输入。")
+                }
+                var updated = self.settings
+                guard let index = updated.workspaces.firstIndex(where: { $0.id == id }) else { return }
+                updated.workspaces[index].binding = binding
+                guard self.persist(updated) else { return }
+                self.codexChecks["navigation"] = "已核对所选会话并聚焦输入框"
+                self.status = "已进入 \(conversation.title)。按住语音键说话，松开后按确认输入。"
+            } catch is CancellationError {
+                self.codexChecks["navigation"] = "切换已取消；实际窗口状态待重新检查"
+                self.status = "切换已取消，所选会话的草稿已保留。"
+            } catch {
+                self.codexChecks["navigation"] = "未验证：\(error.localizedDescription)"
+                self.status = "未完成会话检查：\(error.localizedDescription)。可保留草稿，复制后手动使用。"
+            }
+        }
+    }
+
+    func checkCodexSession() {
+        guard let id = workspace?.id, workspace?.codexConversation != nil else {
+            codexChecks["navigation"] = "请先从会话列表选择一个目标。"; return
+        }
+        openCodexSession(id)
+    }
+    private func moveCodexConversation(_ offset: Int) {
+        guard let profile = workspace, let conversation = profile.codexConversation else {
+            status = "请先一键配置 Codex 并明确选择一个会话。"; return
+        }
+        let sessions = orderedCodexProfiles(in: conversation.projectPath)
+        guard let current = sessions.firstIndex(where: { $0.id == profile.id }) else {
+            status = "当前会话不在目录中，请刷新后重新选择。"; return
+        }
+        let next = current + offset
+        guard sessions.indices.contains(next) else { status = "已到当前项目会话列表的边界。"; return }
+        openCodexSession(sessions[next].id)
+    }
+    private func moveCodexProject(_ offset: Int) {
+        guard let path = workspace?.codexConversation?.projectPath,
+              let current = codexProjectPaths.firstIndex(of: path) else { return }
+        let next = current + offset
+        guard codexProjectPaths.indices.contains(next) else { status = "已到 Codex 项目列表的边界。"; return }
+        let destination = codexProjectPaths[next]
+        let sessions = orderedCodexProfiles(in: destination)
+        guard let selected = sessions.first(where: { $0.id == lastCodexSession[destination] }) ?? sessions.first else { return }
+        openCodexSession(selected.id)
+    }
+
+    private func confirmCodexInput() {
+        guard let profile = workspace, profile.codexConversation != nil else {
+            status = "确认输入用于一键配置的 Codex 会话。"; return
+        }
+        if pendingSend != nil { confirmSend(); return }
+        let draft = voice.draft.text
+        let review = DraftReview(workspaceID: profile.id, draft: draft)
+        installOperationGuard(profile, review: review)
+        operationInProgress = true
+        activeOperation = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishOperation() }
+            var inserted = false
+            do {
+                let text: String
+                try self.requireCodexInputReady(profile, draft: draft)
+                if let receipt = self.insertion[profile.id] {
+                    guard receipt.draft == draft else {
+                        throw ControlError.message("草稿已变化，目标中可能保留之前插入的内容；请检查后手动使用，避免重复追加。")
+                    }
+                    text = receipt.text
+                } else {
+                    text = try await self.insertManagedDraft(draft, for: profile)
+                    self.insertion[profile.id] = (draft, text)
+                    self.codexChecks["input"] = "草稿已插入，并完成全文核对"
+                }
+                inserted = true
+                guard self.hid.isExclusive, self.suppressionConfirmed else {
+                    throw ControlError.message("提交前请完成遥控器独占接管与本次按键验收。")
+                }
+                self.installOperationGuard(profile, review: review, requiresDevice: true)
+                let confirmation = try await self.adapter.prepareSend(for: profile)
+                try Task.checkCancellation()
+                guard confirmation.text == text, self.workspace == profile,
+                      review.matches(workspaceID: self.voice.workspaceID, draft: self.voice.draft.text, busy: self.voice.isBusy),
+                      self.hid.isExclusive, self.suppressionConfirmed else {
+                    throw ControlError.message("目标或输入内容已变化，请检查后重新确认。")
+                }
+                self.pendingSend = SendPreview(confirmation: confirmation, review: review, workspace: profile)
+                self.codexChecks["submission"] = confirmation.kind == .steer ? "Steer 检查通过；等待明确确认，尚未补充" : "发送检查通过；等待明确确认，尚未发送"
+                self.status = self.codexChecks["submission"] ?? "等待确认"
+                self.showWindow()
+            } catch is CancellationError { self.status = "确认输入已取消；请检查草稿和目标输入框。" }
+            catch {
+                self.status = (inserted ? "输入已保留；未提交：" : "未完成确认输入：") + error.localizedDescription
+                self.codexChecks["submission"] = self.status
+            }
+        }
+    }
+
+    private func requireCodexInputReady(_ profile: WorkspaceProfile, draft: String) throws {
+        guard !uncertainCodexInsertion.contains(profile.id) else {
+            throw ControlError.message("上次插入结果尚未确认；已阻止再次追加。请在 Codex 检查并手动处理保留的文字。")
+        }
+        if let previous = codexSubmission[profile.id], !previous.confirmed || !codexClearedAfterSubmission.contains(profile.id) {
+            throw ControlError.message(previous.confirmed
+                ? "这份草稿已提交；如需新指令，请先清空草稿再重新说话。"
+                : "上次提交结果尚未确认；已阻止重发。请在 Codex 检查并手动处理。")
+        }
+    }
+    private func insertManagedDraft(_ draft: String, for profile: WorkspaceProfile) async throws -> String {
+        try requireCodexInputReady(profile, draft: draft)
+        let text = try await adapter.insert(draft, for: profile, willWrite: { [weak self] _ in
+            self?.uncertainCodexInsertion.insert(profile.id)
+        })
+        uncertainCodexInsertion.remove(profile.id)
+        return text
     }
 
     @discardableResult
@@ -174,7 +431,8 @@ final class ControlsModel: ObservableObject {
     func restoreButtonDefaults() {
         updateSettings { config in
             if let index = config.workspaces.firstIndex(where: { $0.id == voice.workspaceID }) {
-                config.workspaces[index].buttonActions = NativeSettings.defaultMappings.map(ButtonActionMapping.init)
+                config.workspaces[index].buttonActions = config.workspaces[index].codexConversation != nil
+                    ? CodingToolPreset.codexConversationActions : NativeSettings.defaultMappings.map(ButtonActionMapping.init)
             } else {
                 config.mappings = NativeSettings.defaultMappings.map { original in
                     var restored = original
@@ -191,7 +449,7 @@ final class ControlsModel: ObservableObject {
               let preset = CodingToolPreset.matching(bundleIdentifier: current.bundleIdentifier) else { return false }
         return updateSettings { config in
             guard let index = config.workspaces.firstIndex(where: { $0.id == current.id }) else { return }
-            config.workspaces[index].buttonActions = preset.buttonActions
+            config.workspaces[index].buttonActions = current.codexConversation != nil ? CodingToolPreset.codexConversationActions : preset.buttonActions
             config.workspaces[index].shortcuts = []
         }
     }
@@ -206,6 +464,9 @@ final class ControlsModel: ObservableObject {
         if updateSettings({ $0.workspaces.append(profile) }) { selectWorkspace(profile.id) }
     }
     func duplicateWorkspace(_ source: WorkspaceProfile) {
+        guard source.codexConversation == nil else {
+            status = "每个 Codex 会话已有独立草稿；请从会话列表选择其他会话。"; return
+        }
         var copy = source
         copy.id = UUID()
         copy.name += " 副本"
@@ -361,9 +622,10 @@ final class ControlsModel: ObservableObject {
     }
     private func route(_ events: [GestureTrigger]) {
         let sourceWorkspace = voice.workspaceID
+        let sourceGeneration = operationGeneration
         for event in events {
             // Resetting the engine cannot retract a batch it has already returned.
-            guard voice.workspaceID == sourceWorkspace else { return }
+            guard voice.workspaceID == sourceWorkspace, operationGeneration == sourceGeneration else { return }
             route(event)
         }
     }
@@ -448,7 +710,15 @@ final class ControlsModel: ObservableObject {
             showingWorkspaces = false
             if voice.isBusy { voice.cancelUtterance() }
         case .copyDraft: voice.copyDraft()
+        case .previousConversation, .nextConversation:
+            moveCodexConversation(action == .previousConversation ? -1 : 1)
+        case .confirmInput:
+            confirmCodexInput()
         case .previousWorkspace, .nextWorkspace:
+            if workspace?.codexConversation != nil {
+                moveCodexProject(action == .previousWorkspace ? -1 : 1)
+                return
+            }
             let all = settings.workspaces
             let current = all.firstIndex(where: { $0.id == voice.workspaceID })
             let index = current.map { $0 + (action == .nextWorkspace ? 1 : -1) } ?? 0
@@ -483,7 +753,14 @@ final class ControlsModel: ObservableObject {
                     try await self.adapter.focus(for: profile)
                     self.status = "已重新验证并聚焦绑定输入框。"
                 case .insertDraft:
-                    let inserted = try await self.adapter.insert(draft, for: profile)
+                    let inserted: String
+                    if profile.codexConversation != nil {
+                        try self.requireCodexInputReady(profile, draft: draft)
+                        guard self.insertion[profile.id] == nil else {
+                            throw ControlError.message("此会话已有插入记录；请使用「确认输入」核对，避免重复追加。")
+                        }
+                        inserted = try await self.insertManagedDraft(draft, for: profile)
+                    } else { inserted = try await self.adapter.insert(draft, for: profile) }
                     self.insertion[profile.id] = (draft, inserted)
                     self.status = "已插入并读回验证。检查工具输入，再选择「预览发送」。"
                 case .stopTask:
@@ -517,6 +794,7 @@ final class ControlsModel: ObservableObject {
             guard let self else { return }
             defer { self.finishOperation() }
             do {
+                if profile.codexConversation != nil { try self.requireCodexInputReady(profile, draft: self.voice.draft.text) }
                 let confirmation = try await self.adapter.prepareSend(for: profile)
                 guard confirmation.text == inserted.text,
                       review.matches(workspaceID: self.voice.workspaceID, draft: self.voice.draft.text, busy: self.voice.isBusy),
@@ -544,9 +822,16 @@ final class ControlsModel: ObservableObject {
             guard let self else { return }
             defer { self.finishOperation() }
             do {
-                let outcome = try await self.adapter.confirmSend(pending.confirmation, for: current)
+                if current.codexConversation != nil { try self.requireCodexInputReady(current, draft: pending.review.draft) }
+                let outcome = try await self.adapter.confirmSend(pending.confirmation, for: current, willSubmit: { [weak self] in
+                    guard current.codexConversation != nil else { return }
+                    self?.codexSubmission[current.id] = (pending.review.draft, false)
+                    self?.codexClearedAfterSubmission.remove(current.id)
+                })
+                if current.codexConversation != nil { self.codexSubmission[current.id] = (pending.review.draft, outcome.confirmed) }
                 self.insertion[current.id] = nil
                 self.status = outcome.message
+                if current.codexConversation != nil { self.codexChecks["submission"] = outcome.message }
                 self.recordCheck(.sendDraft, profile: current, result: (outcome.confirmed ? "上次观察到任务开始：" : "操作结果未确认：") + outcome.message)
             } catch {
                 self.status = "发送未完成：\(error.localizedDescription)"
@@ -619,6 +904,7 @@ final class ControlsModel: ObservableObject {
         perform(event.action)
     }
     func openCodexThread() {
+        if let profile = workspace, profile.codexConversation != nil { openCodexSession(profile.id); return }
         guard canEdit, let profile = workspace, profile.bundleIdentifier == "com.openai.codex",
               let value = profile.codexThreadURL, let url = URL(string: value) else { return }
         pendingSend = nil

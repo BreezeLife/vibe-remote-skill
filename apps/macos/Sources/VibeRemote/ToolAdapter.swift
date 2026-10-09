@@ -37,6 +37,10 @@ struct ToolAXNode {
     var shortcutKeyCode: UInt16? = nil
     var shortcutModifiers: [KeyModifier]? = nil
     var scrollPosition: Double? = nil
+    var documentURL: String? = nil
+    var url: String? = nil
+    var subrole: String? = nil
+    var modal: Bool? = nil
     var children: [ToolAXNode] = []
 }
 
@@ -57,6 +61,7 @@ struct ToolAXObservation {
     func application(bundleIdentifier: String, appPath: String?) throws -> ToolApplication
     func application(at url: URL) throws -> ToolApplication
     func activate(_ application: ToolApplication) async throws
+    func openURL(_ url: URL, for application: ToolApplication) async throws
     func snapshot(_ application: ToolApplication) throws -> ToolAXObservation
     func value(of node: ToolAXNode) throws -> String
     func setValue(_ value: String, of node: ToolAXNode) throws
@@ -66,6 +71,9 @@ struct ToolAXObservation {
 }
 
 extension ToolAXDriver {
+    func openURL(_ url: URL, for application: ToolApplication) async throws {
+        throw ToolAdapterError("此辅助功能后端不支持明确会话导航。")
+    }
     func pressShortcut(_ shortcut: ActionShortcut, processID: Int32) throws {
         throw ToolAdapterError("此辅助功能后端不支持经过验证的快捷键。")
     }
@@ -80,6 +88,7 @@ struct ToolAdapterError: LocalizedError {
 enum ToolLearningSource { case pointer, focused }
 enum ToolControlKind { case send, stop }
 enum ToolScrollDirection { case up, down }
+enum ToolSubmissionKind { case send, steer }
 
 struct LearnedToolInput {
     let workspaceID: UUID
@@ -93,6 +102,8 @@ struct ToolSendConfirmation: Identifiable {
     let text: String
     let workspaceID: UUID
     let workspaceName: String
+    let kind: ToolSubmissionKind
+    fileprivate let control: AXLocator
     fileprivate let workspace: WorkspaceProfile
     fileprivate let application: ToolApplication
 }
@@ -112,12 +123,164 @@ struct ToolCapability: Identifiable {
 @MainActor final class ToolAdapter {
     private let driver: ToolAXDriver
     private var pendingConfirmation: UUID?
+    private let navigationTimeout: TimeInterval
+    // A saved title/project binding never establishes catalog uniqueness after relaunch.
+    private var uniqueCodexTitles: [UUID: CodexConversation] = [:]
     // Coordinator provides current capture/draft/workspace/device authorization per serialized operation.
     var authorizeOperation: (() throws -> Void)?
-    init(driver: ToolAXDriver) { self.driver = driver }
+    init(driver: ToolAXDriver, navigationTimeout: TimeInterval = 2) {
+        self.driver = driver
+        self.navigationTimeout = min(5, max(0.01, navigationTimeout.isFinite ? navigationTimeout : 2))
+    }
     convenience init() { self.init(driver: SystemToolAXDriver()) }
     var permissionGranted: Bool { driver.isTrusted }
     func requestPermission() { driver.requestPermission() }
+
+    func openCodexConversation(_ workspace: WorkspaceProfile, knownConversations: [CodexConversation]) async throws -> ToolBinding {
+        pendingConfirmation = nil
+        uniqueCodexTitles[workspace.id] = nil
+        guard workspace.bundleIdentifier == "com.openai.codex", let conversation = workspace.codexConversation else {
+            throw fail("请先选择明确的 Codex 会话。")
+        }
+        try conversation.validate()
+        guard knownConversations.filter({ $0.id == conversation.id }) == [conversation] else {
+            throw fail("会话目录已变化，无法自动绑定；请刷新后重试。")
+        }
+        let uniqueTitle = knownConversations.filter { $0.title == conversation.title && $0.projectPath == conversation.projectPath }.count == 1
+        let requestedApp = try application(for: workspace)
+        try authorizeMutation()
+        try await driver.openURL(conversation.canonicalURL, for: requestedApp)
+        try authorizeMutation()
+        let deadline = ProcessInfo.processInfo.systemUptime + navigationTimeout
+        var lastError: Error = fail("尚未观察到目标会话。")
+        var openedApp: ToolApplication?
+        var discovered: (application: ToolApplication, binding: ToolBinding)?
+        repeat {
+            try authorizeMutation()
+            let app = try application(for: workspace)
+            guard app.path == requestedApp.path, app.version == requestedApp.version,
+                  requestedApp.processID == nil || app.processID == requestedApp.processID,
+                  openedApp == nil || openedApp == app else {
+                throw fail("导航期间应用身份或进程已变化，未绑定目标。")
+            }
+            if app.processID != nil { openedApp = app }
+            do {
+                let observation = try observed(app)
+                let binding = try discoverCodexBinding(conversation, app: app, observation: observation,
+                                                       previous: workspace.binding, uniqueTitle: uniqueTitle)
+                discovered = (app, binding)
+            } catch is CancellationError { throw CancellationError() }
+            catch { lastError = error }
+            try authorizeMutation()
+            if discovered != nil { break }
+            if ProcessInfo.processInfo.systemUptime >= deadline { break }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        } while ProcessInfo.processInfo.systemUptime < deadline
+        guard let discovered else {
+            throw fail("已请求打开会话，但无法验证目标；请手动绑定。\(lastError.localizedDescription)")
+        }
+        var candidate = workspace
+        candidate.binding = discovered.binding
+        if uniqueTitle { uniqueCodexTitles[workspace.id] = conversation }
+        var completed = false
+        defer { if !completed { uniqueCodexTitles[workspace.id] = nil } }
+        try authorizeMutation()
+        // Retry observations above, never the focus mutation itself.
+        try focusInput(candidate)
+        let final = try verified(candidate, requireFocusedInput: true)
+        guard final.application == discovered.application else { throw fail("聚焦期间应用身份已变化。") }
+        let anchor = try resolve(discovered.binding.taskAnchor, in: final.window, purpose: "会话标识")
+        let evidence = try conversationEvidence(conversation, window: final.window, input: final.input, anchor: anchor)
+        guard evidence.thread || (evidence.project && uniqueTitle) else { throw fail("聚焦后会话身份已无法验证。") }
+        completed = true
+        return discovered.binding
+    }
+
+    private func discoverCodexBinding(_ conversation: CodexConversation, app: ToolApplication,
+                                      observation: ToolAXObservation, previous: ToolBinding?, uniqueTitle: Bool) throws -> ToolBinding {
+        guard let window = observation.windows.first(where: { $0.id == observation.focusedWindowID }),
+              let title = window.label, !title.isEmpty,
+              observation.windows.filter({ $0.label == title }).count == 1 else {
+            throw fail("当前窗口没有唯一稳定标题。")
+        }
+        try rejectModal(observation)
+        let entries = flattened(window)
+        let inputs = entries.filter {
+            ["AXTextArea", "AXTextField", "AXComboBox"].contains($0.node.role) && $0.node.editable &&
+            !$0.node.secure && $0.node.enabled == true && $0.node.visible == true &&
+            !$0.node.inNavigation && $0.node.contentScopeID != nil
+        }
+        guard inputs.count == 1, let input = inputs.first else { throw fail("没有唯一可验证的 AI 输入框。") }
+        try requireInput(input.node, in: window)
+        let anchors = entries.filter {
+            $0.node.label == conversation.title && (try? requireCurrentAnchor($0.node, input: input.node)) != nil
+        }
+        guard anchors.count == 1, let anchor = anchors.first else { throw fail("当前主内容区没有唯一且完全匹配的会话标题。") }
+        let evidence = try conversationEvidence(conversation, window: window, input: input.node, anchor: anchor.node)
+        guard evidence.thread || (evidence.project && uniqueTitle) else { throw fail("缺少当前会话 ID，且标题/项目无法唯一确定目标。") }
+        func control(_ kind: ToolControlKind) -> AXLocator? {
+            let matches = entries.filter { (try? requireControl($0.node, kind: kind, input: input.node)) != nil }
+            guard matches.count == 1, let entry = matches.first else { return nil }
+            return makeLocator(entry.node, path: entry.path)
+        }
+        // Keep separately learned controls when the same live conversation/input is established,
+        // including a Stop control which legitimately disappears while the task is idle.
+        let reusable = previous.flatMap { binding -> ToolBinding? in
+            guard binding.appVersion == app.version, sameIdentity(input.node, binding.input),
+                  sameIdentity(anchor.node, binding.taskAnchor) else { return nil }
+            return binding
+        }
+        return ToolBinding(appVersion: app.version, windowTitle: title,
+                           input: makeLocator(input.node, path: input.path), taskAnchor: makeLocator(anchor.node, path: anchor.path),
+                           sendControl: control(.send) ?? reusable?.sendControl, stopControl: control(.stop) ?? reusable?.stopControl)
+    }
+
+    /// Only document/container ancestors of this input describe its current destination.
+    /// Sidebar links and URLs inside conversation messages never establish current identity.
+    private func conversationEvidence(_ conversation: CodexConversation, window: ToolAXNode,
+                                      input: ToolAXNode, anchor: ToolAXNode) throws -> (thread: Bool, project: Bool) {
+        guard let entry = flattened(window).first(where: { $0.node.id == input.id }) else { throw fail("输入位置已变化。") }
+        var contexts = [window]
+        var node = window
+        for index in entry.path.dropLast() {
+            node = node.children[index]
+            if !node.inNavigation && (node.id == input.contentScopeID || ["AXWebArea", "AXDocument"].contains(node.role)) {
+                contexts.append(node)
+            }
+        }
+        var threads = Set<String>(), projects = Set<String>()
+        func record(_ value: String) {
+            guard let url = URL(string: value) else { return }
+            if url.scheme == "codex", url.host == "threads", url.query == nil, url.fragment == nil {
+                let parts = url.path.split(separator: "/")
+                if parts.count == 1, let id = UUID(uuidString: String(parts[0])) { threads.insert(id.uuidString.lowercased()) }
+            } else if url.isFileURL, url.host == nil || url.host == "" || url.host == "localhost" {
+                projects.insert(url.standardizedFileURL.path)
+            }
+        }
+        for context in contexts {
+            if let value = context.documentURL { record(value) }
+            if let value = context.url { record(value) }
+        }
+        // An exact UUID on the current title/container is useful; opaque IDs are not guessed.
+        for context in contexts + [anchor] {
+            if let identifier = context.identifier, let id = UUID(uuidString: identifier) {
+                threads.insert(id.uuidString.lowercased())
+            }
+        }
+        guard threads.isEmpty || threads == [conversation.id.lowercased()] else { throw fail("当前会话 ID 与所选会话不一致。") }
+        guard projects.isEmpty || projects == [conversation.projectPath] else { throw fail("当前项目路径与所选会话不一致。") }
+        return (!threads.isEmpty, !projects.isEmpty)
+    }
+
+    private func rejectModal(_ observation: ToolAXObservation) throws {
+        let nodes: [ToolAXNode] = observation.windows.flatMap { window in flattened(window).map { $0.node } }
+        let blocked = nodes.contains { node in
+            guard node.visible != false else { return false }
+            return node.modal == true || node.role == "AXSheet" || node.subrole == "AXDialog" || node.subrole == "AXSystemDialog"
+        }
+        guard !blocked else { throw fail("应用存在对话框或批准提示，请先在工具中处理。") }
+    }
 
     func installedTools() -> [InstalledTool] {
         [("Codex", "com.openai.codex"), ("Claude Desktop", "com.anthropic.claudefordesktop"),
@@ -204,7 +367,7 @@ struct ToolCapability: Identifiable {
         try focusInput(workspace)
     }
 
-    @discardableResult func insert(_ draft: String, for workspace: WorkspaceProfile) async throws -> String {
+    @discardableResult func insert(_ draft: String, for workspace: WorkspaceProfile, willWrite: ((String) -> Void)? = nil) async throws -> String {
         pendingConfirmation = nil
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw fail("草稿为空。") }
         _ = try await activated(workspace)
@@ -221,6 +384,7 @@ struct ToolCapability: Identifiable {
             throw fail("输入或目标在插入前已改变，请重新检查。")
         }
         try authorizeMutation()
+        willWrite?(text)
         try driver.setValue(text, of: current.input)
         let after = try verified(workspace, requireFocusedInput: true)
         guard after.application == current.application, try driver.value(of: after.input) == text else {
@@ -234,16 +398,18 @@ struct ToolCapability: Identifiable {
         _ = try await activated(workspace)
         try focusInput(workspace)
         let target = try verified(workspace, requireFocusedInput: true)
-        _ = try readySend(target)
+        let submission = try readySubmission(target, workspace: workspace)
         let text = try driver.value(of: target.input)
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw fail("目标 AI 输入框为空。") }
         let confirmation = ToolSendConfirmation(id: UUID(), text: text, workspaceID: workspace.id,
-                                               workspaceName: workspace.name, workspace: workspace, application: target.application)
+                                               workspaceName: workspace.name, kind: submission.kind,
+                                               control: submission.locator,
+                                               workspace: workspace, application: target.application)
         pendingConfirmation = confirmation.id
         return confirmation
     }
 
-    func confirmSend(_ confirmation: ToolSendConfirmation, for workspace: WorkspaceProfile) async throws -> ToolActionOutcome {
+    func confirmSend(_ confirmation: ToolSendConfirmation, for workspace: WorkspaceProfile, willSubmit: (() -> Void)? = nil) async throws -> ToolActionOutcome {
         guard pendingConfirmation == confirmation.id else { throw fail("发送确认已失效，请重新预览。") }
         // Consume before any await: cancellation, errors and repeated callbacks cannot reuse approval.
         pendingConfirmation = nil
@@ -252,13 +418,32 @@ struct ToolCapability: Identifiable {
         try focusInput(workspace)
         let target = try verified(workspace, requireFocusedInput: true)
         guard target.application == confirmation.application else { throw fail("应用版本、路径或进程已改变，请重新预览。") }
-        let send = try readySend(target)
+        let submission = try readySubmission(target, workspace: workspace)
+        guard submission.kind == confirmation.kind, submission.locator == confirmation.control else {
+            throw fail("提交方式或控件已变化，请重新预览并确认。")
+        }
         guard try driver.value(of: target.input) == confirmation.text else { throw fail("待发送全文已改变，请重新预览。") }
-        try execute(.sendDraft, control: send, target: target, workspace: workspace)
+        if confirmation.kind == .steer {
+            // Steer is an explicit UI action, never an approval or a configured generic Send key.
+            try authorizeMutation()
+            willSubmit?()
+            try driver.perform("AXPress", on: submission.control)
+            do {
+                let after = try verified(workspace)
+                let previous = flattened(after.window).map(\.node).filter { sameIdentity($0, confirmation.control) }
+                if after.application == target.application, try driver.value(of: after.input).isEmpty,
+                   previous.isEmpty || (previous.count == 1 && previous[0].enabled == false) {
+                    return ToolActionOutcome(message: "已观察到输入清空且引导控件变化；请在工具中核对当前任务。", confirmed: true)
+                }
+            } catch { /* An uncertain result never retries the action. */ }
+            return ToolActionOutcome(message: "已触发引导，但尚未确认工具接收；请在工具中检查，勿自动重发。", confirmed: false)
+        }
+        try execute(.sendDraft, control: submission.control, target: target, workspace: workspace, willMutate: willSubmit)
         // No retry if AXPress succeeds but the outcome is unknown.
         do {
             let after = try verified(workspace)
-            let running = try runningState(after)
+            let running = workspace.codexConversation != nil && after.binding.stopControl == nil
+                ? try observedCodexRunningState(after) : try runningState(after)
             if running && after.application == target.application {
                 return ToolActionOutcome(message: "已观察到绑定任务的停止生成控件；仍需在工具中核对回复。", confirmed: true)
             }
@@ -376,6 +561,14 @@ struct ToolCapability: Identifiable {
             throw fail("绑定会话标识不再是独立稳定的任务名称，请重新学习。")
         }
         try requireCurrentAnchor(anchor, input: input)
+        if workspace.bundleIdentifier == "com.openai.codex", let conversation = workspace.codexConversation {
+            try conversation.validate()
+            try rejectModal(observation)
+            let evidence = try conversationEvidence(conversation, window: window, input: input, anchor: anchor)
+            guard evidence.thread || (evidence.project && uniqueCodexTitles[workspace.id] == conversation) else {
+                throw fail("当前 Codex 会话身份已无法验证，请重新检查。")
+            }
+        }
         if requireFocusedInput && observation.focusedNodeID != input.id { throw fail("无法确认焦点位于绑定 AI 输入框。") }
         return Target(application: app, binding: binding, observation: observation, window: window, input: input)
     }
@@ -492,6 +685,93 @@ struct ToolCapability: Identifiable {
         guard control.enabled == true else { throw fail("发送控件未启用，AI 是否可接收尚未确认。") }
         return control
     }
+    private func observedCodexRunningState(_ target: Target) throws -> Bool {
+        let nodes = flattened(target.window).map(\.node).filter {
+            $0.visible != false && !$0.inNavigation && $0.contentScopeID == target.input.contentScopeID
+        }
+        let stops = nodes.filter { (try? requireControl($0, kind: .stop, input: target.input)) != nil }
+        guard stops.count <= 1 else { throw fail("当前任务的停止控件存在歧义，运行状态未知。") }
+        let suspicious = nodes.contains { node in
+            if stops.contains(where: { $0.id == node.id }) { return false }
+            if (try? requireControl(node, kind: .send, input: target.input)) != nil { return false }
+            guard !node.editable, !node.secure else { return false }
+            let label = (node.label ?? "").lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let identity = label + " " + (node.identifier ?? "").lowercased()
+            let actionable = ["AXButton", "AXMenuItem", "AXLink"].contains(node.role) || node.actions.contains("AXPress")
+            if actionable {
+                if label.isEmpty { return true }
+                return ["stop", "cancel", "abort", "interrupt", "terminate", "pause", "running", "working", "thinking", "generating",
+                        "processing", "queued", "continue", "resume", "retry", "steer", "停止", "取消", "中止", "终止", "暂停",
+                        "继续", "重试", "生成中", "思考中", "处理中", "排队", "引导"].contains { identity.contains($0) }
+            }
+            return ["running", "working", "working…", "thinking", "thinking…", "generating", "processing", "queued",
+                    "运行中", "生成中", "思考中", "处理中", "排队中"].contains(label)
+        }
+        guard !suspicious else { throw fail("当前任务仍有运行或未知操作控件，无法确认可发送。") }
+        guard let stop = stops.first else { return false }
+        guard let enabled = stop.enabled else { throw fail("停止控件状态未知，无法确认可发送。") }
+        return enabled
+    }
+    private func readyManagedSend(_ target: Target, conversation: CodexConversation) throws -> ToolAXNode {
+        let anchor = try resolve(target.binding.taskAnchor, in: target.window, purpose: "会话标识")
+        let evidence = try conversationEvidence(conversation, window: target.window, input: target.input, anchor: anchor)
+        guard evidence.thread || evidence.project else { throw fail("缺少当前 Codex 会话身份，无法自动确认空闲发送。") }
+        // A retained idle Stop locator must not hide another current runtime control.
+        let observedRunning = try observedCodexRunningState(target)
+        let running = target.binding.stopControl == nil ? observedRunning : (try runningState(target)) || observedRunning
+        guard !running else { throw fail("绑定任务正在生成，不能发送新输入。") }
+        let control: ToolAXNode
+        if let locator = target.binding.sendControl {
+            // Stale learned controls do not fall back to a different button.
+            control = try resolve(locator, in: target.window, purpose: "发送控件")
+            try requireControl(control, kind: .send, input: target.input)
+        } else {
+            let sends = flattened(target.window).map(\.node).filter { (try? requireControl($0, kind: .send, input: target.input)) != nil }
+            guard sends.count == 1, let send = sends.first else { throw fail("没有唯一明确的发送控件。") }
+            control = send
+        }
+        guard control.enabled == true else { throw fail("发送控件未启用，不能确认可接收输入。") }
+        return control
+    }
+    private func readySubmission(_ target: Target, workspace: WorkspaceProfile) throws -> (kind: ToolSubmissionKind, control: ToolAXNode, locator: AXLocator) {
+        let entries = flattened(target.window)
+        if workspace.bundleIdentifier == "com.openai.codex", workspace.codexConversation != nil {
+            try rejectModal(target.observation)
+            let approvals = ["approve", "approve once", "approve for this session", "allow", "allow once", "allow for this session",
+                             "允许", "允许一次", "始终允许", "批准", "批准一次", "请求批准", "需要批准", "request approval"]
+            let waitingApproval = entries.contains { entry in
+                let node = entry.node
+                guard node.visible != false, !node.inNavigation, node.contentScopeID == target.input.contentScopeID,
+                      !node.editable else { return false }
+                let label = (node.label ?? "").lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                if ["approval required", "approval requested", "request approval", "permission required", "需要批准", "等待批准", "请求批准", "需要授权"].contains(label) { return true }
+                guard ["AXButton", "AXMenuItem"].contains(node.role) else { return false }
+                return approvals.contains(label) || label.hasPrefix("approve ") || label.hasPrefix("allow ") ||
+                    label.hasPrefix("批准") || label.hasPrefix("允许")
+            }
+            guard !waitingApproval else { throw fail("当前任务正在等待批准，请直接在 Codex 中处理；引导不能代替批准。") }
+            let steerLabels = ["steer", "steer now", "立即引导", "引导", "引导当前任务"]
+            let steers = entries.filter { entry in
+                let node = entry.node
+                return steerLabels.contains((node.label ?? "").lowercased().trimmingCharacters(in: .whitespacesAndNewlines)) &&
+                    node.visible != false && !node.inNavigation && node.contentScopeID == target.input.contentScopeID
+            }
+            if !steers.isEmpty {
+                guard steers.count == 1, let entry = steers.first, entry.node.visible == true,
+                      entry.node.enabled == true, !entry.node.editable, !entry.node.secure,
+                      ["AXButton", "AXMenuItem"].contains(entry.node.role), entry.node.actions.contains("AXPress") else {
+                    throw fail("当前引导控件不明确或不可用，未提交。")
+                }
+                return (.steer, entry.node, makeLocator(entry.node, path: entry.path))
+            }
+        }
+        let control: ToolAXNode
+        if workspace.bundleIdentifier == "com.openai.codex", let conversation = workspace.codexConversation {
+            control = try readyManagedSend(target, conversation: conversation)
+        } else { control = try readySend(target) }
+        guard let entry = entries.first(where: { $0.node.id == control.id }) else { throw fail("发送控件已变化。") }
+        return (.send, control, makeLocator(control, path: entry.path))
+    }
     private func verifiedShortcut(_ shortcut: ActionShortcut, on control: ToolAXNode) throws {
         guard shortcut.isSupported, control.shortcutKeyCode == shortcut.keyCode,
               let modifiers = control.shortcutModifiers,
@@ -499,13 +779,18 @@ struct ToolCapability: Identifiable {
             throw fail("目标控件未公开与配置一致的语义快捷键；请清除自定义快捷键以使用已绑定的辅助功能操作。")
         }
     }
-    private func execute(_ action: RemoteAction, control: ToolAXNode, target: Target, workspace: WorkspaceProfile) throws {
+    private func execute(_ action: RemoteAction, control: ToolAXNode, target: Target, workspace: WorkspaceProfile,
+                         willMutate: (() -> Void)? = nil) throws {
         try authorizeMutation()
         if let shortcut = workspace.shortcuts.first(where: { $0.action == action }) {
             try verifiedShortcut(shortcut, on: control)
             guard target.observation.focusedNodeID == target.input.id else { throw fail("快捷键要求实时确认 AI 输入焦点。") }
+            willMutate?()
             try driver.pressShortcut(shortcut, processID: target.observation.processID)
-        } else { try driver.perform("AXPress", on: control) }
+        } else {
+            willMutate?()
+            try driver.perform("AXPress", on: control)
+        }
     }
 }
 
@@ -564,6 +849,18 @@ struct ToolCapability: Identifiable {
             try Task.checkCancellation()
         }
         throw ToolAdapterError("激活请求后未观察到目标成为前台应用。")
+    }
+    func openURL(_ url: URL, for application: ToolApplication) async throws {
+        try Task.checkCancellation()
+        guard application.bundleIdentifier == "com.openai.codex", url.scheme == "codex", url.host == "threads",
+              url.query == nil, url.fragment == nil, url.path.split(separator: "/").count == 1,
+              UUID(uuidString: String(url.path.dropFirst())) != nil else {
+            throw ToolAdapterError("只允许打开明确的 Codex 会话地址。")
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: application.path), configuration: configuration)
+        try Task.checkCancellation()
     }
     func snapshot(_ application: ToolApplication) throws -> ToolAXObservation {
         guard isTrusted, let pid = application.processID else { throw ToolAdapterError("目标尚未运行或辅助功能不可用。") }
@@ -642,12 +939,19 @@ struct ToolCapability: Identifiable {
             }
             let scrollPosition = role == "AXScrollArea" ? elementAttribute(element, kAXVerticalScrollBarAttribute)
                 .flatMap { attribute($0, kAXValueAttribute) as? NSNumber }?.doubleValue : nil
+            // AXDocument is a URL string; AXURL is a CFURL. Read document metadata only,
+            // never AXValue or arbitrary link targets as current-conversation evidence.
+            let documentRole = ["AXWindow", "AXWebArea", "AXDocument"].contains(role) || main
+            let documentURL = documentRole ? attribute(element, kAXDocumentAttribute) as? String : nil
+            let nodeURL = documentRole ? (attribute(element, kAXURLAttribute) as? URL)?.absoluteString : nil
             return ToolAXNode(id: id, role: role, identifier: identifier, label: label, editable: editable, secure: secure,
                               enabled: (attribute(element, kAXEnabledAttribute) as? NSNumber)?.boolValue,
                               actions: actionNames as? [String] ?? [], visible: visible, contentScopeID: scope,
                               inNavigation: navigation, selected: (attribute(element, kAXSelectedAttribute) as? NSNumber)?.boolValue,
                               shortcutKeyCode: virtualKey.map { $0.uint16Value },
-                              shortcutModifiers: keyModifiers, scrollPosition: scrollPosition, children: built)
+                              shortcutModifiers: keyModifiers, scrollPosition: scrollPosition,
+                              documentURL: documentURL, url: nodeURL, subrole: subrole,
+                              modal: (attribute(element, kAXModalAttribute) as? NSNumber)?.boolValue, children: built)
         }
         let nodes = windows.enumerated().compactMap { walk($0.element, id: "\(pid):\($0.offset)", depth: 0) }
         guard !snapshotTimedOut else { throw ToolAdapterError("辅助功能读取超过两秒预算，检查不完整；本次操作已阻止。") }

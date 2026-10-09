@@ -61,17 +61,21 @@ struct SettingsViews: View {
         }.frame(minWidth: 960, minHeight: 720)
             .sheet(item: $controls.pendingSend) { preview in
                 VStack(alignment: .leading, spacing: 16) {
-                    Label("确认发送到 \(preview.workspace.name)", systemImage: "paperplane")
+                    Label(preview.confirmation.kind == .steer ? "补充当前任务 · \(preview.workspace.name)" : "确认发送到 \(preview.workspace.name)",
+                          systemImage: preview.confirmation.kind == .steer ? "plus.bubble" : "paperplane")
                         .font(.title2.bold())
-                    Text("\(preview.workspace.bundleIdentifier) · \(preview.workspace.binding?.windowTitle ?? "")")
+                    Text("\(preview.workspace.bundleIdentifier) · \(preview.workspace.codexConversation?.title ?? preview.workspace.binding?.windowTitle ?? "")")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("以下是目标输入框中的完整内容。确认时会再次核对目标、文字和任务状态。")
+                    Text(preview.confirmation.kind == .steer ?
+                         "以下完整内容将补充给正在运行的任务。确认时会再次核对目标、文字和 Steer 控件。" :
+                         "以下是目标输入框中的完整内容。确认时会再次核对目标、文字和任务状态。")
                     ScrollView { Text(preview.confirmation.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding() }
                         .frame(minHeight: 200, maxHeight: 400).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                     HStack {
                         Button("返回检查") { controls.pendingSend = nil }.keyboardShortcut(.cancelAction)
                         Spacer()
-                        Button("确认发送", action: controls.confirmSend).buttonStyle(.borderedProminent)
+                        Button(preview.confirmation.kind == .steer ? "确认补充当前任务" : "确认发送", action: controls.confirmSend)
+                            .buttonStyle(.borderedProminent)
                     }
                 }.padding(24).frame(width: 640)
             }
@@ -105,19 +109,35 @@ struct SettingsViews: View {
     }
 
     private var workspaceBar: some View {
-        HStack(spacing: 12) {
-            Picker("草稿工作区", selection: Binding(get: { voice.workspaceID }, set: controls.selectWorkspace)) {
-                Text("未绑定草稿").tag(nil as UUID?)
-                ForEach(controls.settings.workspaces) { Text($0.name).tag(Optional($0.id)) }
-            }.frame(maxWidth: 320).disabled(voice.isBusy || controls.operationInProgress)
-            Spacer()
-            if controls.workspace != nil {
-                Button("聚焦") { controls.perform(.focusTarget) }.disabled(!controls.canEdit)
-                Button("插入草稿") { controls.perform(.insertDraft) }.disabled(!voice.canCopy || !controls.canEdit)
-                Button("预览发送") { controls.perform(.sendDraft) }
-                    .disabled(controls.safety.blockReason(for: .sendDraft) != nil)
-            } else {
-                Button("添加编程工具") { controls.page = .tools }
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Picker("草稿工作区", selection: Binding(get: { voice.workspaceID }, set: controls.selectWorkspace)) {
+                    Text("未绑定草稿").tag(nil as UUID?)
+                    ForEach(controls.settings.workspaces) { Text($0.name).tag(Optional($0.id)) }
+                }.frame(maxWidth: 320).disabled(voice.isBusy || controls.operationInProgress)
+                Spacer()
+                if controls.workspace?.codexConversation != nil {
+                    Button("确认输入") { controls.perform(.confirmInput) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(controls.safety.blockReason(for: .confirmInput) != nil)
+                        .help("插入当前草稿并检查提交方式；完整内容仍需再次确认。")
+                    Menu("更多") {
+                        Button("聚焦输入框") { controls.perform(.focusTarget) }.disabled(!controls.canEdit)
+                        Button("仅插入草稿") { controls.perform(.insertDraft) }.disabled(!voice.canCopy || !controls.canEdit)
+                        Button("预览提交") { controls.perform(.sendDraft) }
+                            .disabled(controls.safety.blockReason(for: .sendDraft) != nil)
+                    }.fixedSize()
+                } else if controls.workspace != nil {
+                    Button("聚焦") { controls.perform(.focusTarget) }.disabled(!controls.canEdit)
+                    Button("插入草稿") { controls.perform(.insertDraft) }.disabled(!voice.canCopy || !controls.canEdit)
+                    Button("预览发送") { controls.perform(.sendDraft) }
+                        .disabled(controls.safety.blockReason(for: .sendDraft) != nil)
+                } else {
+                    Button("添加编程工具") { controls.page = .tools }
+                }
+            }
+            if controls.workspace?.codexConversation != nil {
+                CodexSessionNavigationView(model: controls)
             }
         }.padding(14)
     }

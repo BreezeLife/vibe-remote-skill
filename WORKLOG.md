@@ -549,3 +549,68 @@ Read-only installation check still reports system 0.2.3 and no ~/Applications co
 Asked the user to complete or cancel that dialog before proceeding with 0.2.5; the computer-use
 tool cannot operate the protected authentication window. No installed app, real configuration,
 permissions, HID ownership or drafts were changed. STATUS.md and .project-pulse/ left untouched.
+
+
+## 2026-10-10 — managed Codex conversations, one-click setup and test guide
+
+User requested Codex desktop first, direct up/down conversation switching in the current tool,
+project/workspace navigation, automatic input focus, voice input followed by explicit confirmation,
+and preference for Steer when a running conversation exposes it. Later requested one-click
+configuration with test guidance. Claude/WorkBuddy retain their existing manual presets; managed
+conversation adapters are follow-up work after Codex acceptance.
+
+Added strict persisted conversation metadata and a short-lived bounded catalog service using
+the selected Codex application's bundled CLI. It only initializes and lists local thread metadata;
+retains ID/name/cwd, never previews/transcripts/runtime state. A private server cannot control the
+desktop server's active turn. Catalog candidates stay ephemeral; only deliberately selected
+sessions become profiles with separate draft UUIDs. Existing manual profile identities and
+custom actions are preserved. Updated canonical title/path information supersedes stale catalog
+metadata while customized actions remain. Managed duplication is disabled to prevent ambiguity.
+
+Added canonical conversation navigation, bounded observation retries, verified main-composer
+binding and focus. Live thread identity or catalog-qualified project/title evidence is mandatory;
+sidebar links, ambiguous titles, missing evidence, modal/approval and unknown runtime controls
+cannot authorize mutation. Managed default up/down navigates sessions within the current project;
+left/right navigates projects and restores the last selected session. Capture cancels delayed
+navigation effects and preserves the explicitly selected draft owner.
+
+Confirmation now inserts once, reads back the complete target text, and presents an explicit
+Send/Steer review. A fresh uniquely scoped Steer control takes priority; otherwise verified idle
+Send may be used without requiring a Stop control to have been visible during initial setup.
+Second confirmation rechecks target/text/kind/device and consumes its approval once. Mutation
+callbacks distinguish preflight failures from attempted writes/submits, preserving uncertain
+outcome locks instead of blindly repeating actions. Confirmed submission keeps the user's draft
+and requires an explicit empty reset before new input, preventing old text appended by subsequent
+dictation from being sent twice.
+
+One-click UI prepares metadata/defaults and lets the user select project/session. Observed checks
+are shown separately from installation and configuration. In-app guide covers permissions, HID
+exclusivity, two-session navigation/draft isolation, hold/release dictation, two-step confirmation,
+Steer and manual fallback. The computer-use tool rejected real Codex UI access; did not bypass it
+with AX/AppleScript or execute the new adapter against Codex. All navigation/input/send checks
+used synthetic fixtures. No real catalog process, target UI mutation, remote/audio or TCC prompt
+was exercised by tests.
+
+Verification: core 69 tests; Speech 42 assertions; model 22 scenarios/159 assertions; HID 48;
+settings 15; adapter 307; catalog 27; controls integration 60 scenarios/190 assertions; Python 30,
+all passed, plus neutral configuration validation. Observed red regressions before fixes: initial
+confirmation integration (2 failures), refreshed metadata/check isolation/copy/uncertain retries
+(7 failures), and confirmed-send draft reset (2 failures). Independent final review found no
+remaining actionable blocker. Isolated production UI renders passed at 740 pt and full 960 pt
+window, with no real app activations, writes or presses. Added catalog suite to GitHub workflow.
+
+Built 0.2.6/build 9 retaining the enlarged remote + Vibe icon. Independently expanded package:
+LocalSystem-only, /Applications destination, relocation disabled, expected bundle identity/version,
+strict signature and exact source icon bytes. Package:
+~/Downloads/VibeRemote-0.2.6-System-20261010/VibeRemote-0.2.6-arm64.pkg,
+3,268,257 bytes; SHA-256 f7f250c033791603fc1b6a4d5025032090a371455ae1bd21eccfd12c7ecab88a.
+The app remains ad-hoc signed; installer unsigned/unnotarized.
+
+Fresh installation metadata showed the user had completed 0.2.5 in /Applications; no user-directory
+copy. Inspected unbound and all 9 configured workspace drafts as empty with no capture, restored
+the original selection and quit normally. Saved old bundle to
+~/Library/Caches/VibeRemote/PreviousVersions/VibeRemote-0.2.5-20261010.app.backup.
+Opened the exact 0.2.6 package in macOS Installer, confirmed installation for all users on Macintosh
+HD and started it. Administrator authorization requires the user's system action; requested that
+without collecting credentials. Final installed/running version and real Codex/remote acceptance
+are pending. STATUS.md and .project-pulse/ remain untouched.

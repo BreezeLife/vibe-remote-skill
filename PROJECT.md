@@ -27,6 +27,18 @@ Legacy profiles retain their global actions until explicitly edited or given a p
 Version 0.2.5 adds explicit nearby-remote selection and bounded idle reconnection. Discovery
 observations and saved identifiers never establish ATVV readiness; manual/capture stops
 require an explicit connection action. No audio or transcripts are persisted.
+Version 0.2.6 adds a Codex-first managed conversation workflow. One-click configuration
+reads a bounded local conversation catalog from the selected Codex app's bundled CLI;
+the user then selects a project path and an existing conversation. Each selected
+conversation has its own workspace UUID and in-memory draft. The managed preset uses
+up/down for conversations within the project, left/right for projects, and OK for
+insertion followed by a separate full-text submission confirmation. Runtime AX checks
+prefer an available Steer control for the current task; approvals remain separate.
+The private catalog app-server never resumes a thread or sends a turn, and its status
+cannot establish the desktop app's active turn. The shipped app does not depend on
+Codex agent tools or an LLM for these controls. Existing manual bindings and other tool
+presets retain their behavior. Actual Codex UI automation was denied during development;
+catalog fixtures and builds do not establish real navigation, input or Steer acceptance.
 Doubao/Typeless virtual microphone remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
@@ -59,7 +71,8 @@ Native design and build/use steps: docs/NATIVE-DESIGN.md and docs/NATIVE-SETUP.m
 Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
 `bash scripts/test_macos_model.sh`, `bash scripts/test_macos_hid.sh`,
 `bash scripts/test_macos_tools.sh`, `bash scripts/test_macos_controls.sh`,
-`bash scripts/test_macos_integration.sh` and `bash scripts/build_macos_app.sh`.
+`bash scripts/test_macos_catalog.sh`, `bash scripts/test_macos_integration.sh`
+and `bash scripts/build_macos_app.sh`.
 Normal builds output to ~/Library/Caches/VibeRemote/Build without writing to system
 application directories. `bash scripts/package_macos_app.sh` stages the app in a local
 temporary directory and produces a `.pkg` plus SHA-256 file. From 0.2.2, the package uses

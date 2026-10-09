@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-09 (Asia/Shanghai).
+Updated: 2026-10-10 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -12,12 +12,48 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Observed on 2026-10-09: /Applications/Vibe Remote.app, 0.2.3 / build 6, matching the user's
-About screenshot and actual window. The current-user copy is absent. The 0.2.5 discovery
-update includes the enlarged icon and is ready in a system-only installer. The earlier
-0.2.4 Installer remains at administrator authorization; asked the user to complete or cancel
-that system dialog before continuing 0.2.5 installation. Hardware and tool acceptance remain separate.
+Observed on 2026-10-10 before update: /Applications/Vibe Remote.app, 0.2.5 / build 8;
+the current-user ~/Applications copy is absent. Inspected unbound and all 9 workspace drafts
+as empty, quit normally, and backed up the old bundle. The 0.2.6 system Installer is now
+at administrator authorization; user action is pending. Hardware and real Codex acceptance
+remain separate from the simulated checks below.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.6 — Codex one-click setup, conversations and test guidance
+
+- [x] Discover the installed Codex by bundle identity and read its bounded local conversation
+  metadata through its bundled CLI. Only initialize/initialized/thread/list are allowed;
+  no conversation bodies, resume, turn/start or turn/steer calls.
+- [x] One-click setup prepares the project/session directory and defaults. Selecting a session
+  creates its own draft identity, opens the canonical link and attempts verified input binding.
+- [x] Managed preset: up/down switch sessions in the current project; left/right switch projects.
+  Boundaries do not wrap. Existing manual profiles, draft identities and custom actions survive.
+- [x] First OK inserts and reviews exact text; second explicit confirmation submits. Verified
+  same-composer Steer takes precedence over normal Send. Unknown state blocks submission.
+- [x] Keep per-session receipts, invalidate review on target/draft/capture changes, and block
+  repeated uncertain writes/submissions. After confirmed submission, require deliberate empty
+  draft reset before the next instruction so new dictation cannot resend an old prefix.
+- [x] Add in-app permissions, navigation, dictation, confirmation and Steer test guidance;
+  show metadata/configuration separately from target-specific observed checks.
+- [x] Tests: 69 core; 42 Speech; 22 model scenarios/159 assertions; 48 HID; 15 settings;
+  307 tool-adapter; 27 catalog assertions; 60 integration scenarios/190 assertions;
+  30 Python tests and default configuration validation, all passed.
+- [x] Independent review, final release/package build, diff checks and isolated view renders
+  (740 pt pages and 960 pt whole window) passed. GitHub workflow includes catalog checks.
+- [x] Independently expand package and verify 0.2.6/build 9, LocalSystem-only domain,
+  /Applications payload, disabled relocation, canonical icon bytes and strict app signature.
+- [ ] Complete system administrator authorization, then verify the installed/running 0.2.6.
+- [ ] User-led real Codex acceptance: two sessions, independent drafts, focus, two-step Send,
+  running-task Steer and capability-failure fallback. Computer-use access to Codex was denied;
+  injected fixture results are not evidence of real UI compatibility.
+- [ ] Physical remote acceptance: pairing, HID exclusivity/no event pass-through, voice holds.
+- [ ] Add equivalent managed conversation adapters for Claude and WorkBuddy after Codex acceptance.
+
+Package: ~/Downloads/VibeRemote-0.2.6-System-20261010/VibeRemote-0.2.6-arm64.pkg
+(3,268,257 bytes; 0.2.6/build 9; LocalSystem only; /Applications).
+SHA-256: f7f250c033791603fc1b6a4d5025032090a371455ae1bd21eccfd12c7ecab88a.
+App is ad-hoc signed; package remains unsigned/unnotarized. The installed user's settings,
+permissions and remembered remote were not modified by development checks.
 
 ## 0.2.5 — find, choose and reconnect a remote
 

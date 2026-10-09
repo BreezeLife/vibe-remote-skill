@@ -176,3 +176,61 @@ the user's 2026-10-08 system Applications requirement. Other packaging safeguard
   Forget removes the app preference, not system pairing, HID calibration, workspaces or drafts.
 - CoreBluetooth cannot stand in for system pairing confirmation; show wake/pair guidance.
   Discovery and ATVV reconnect do not seize HID or enable mapped actions.
+
+## 2026-10-10 — Codex managed conversations and explicit input confirmation
+
+- The user prioritized Codex desktop for selecting projects/conversations with the remote,
+  entering the selected input by default, and confirming voice drafts. Existing tasks that
+  accept follow-up input should prefer Steer. Claude/WorkBuddy automatic conversation
+  discovery remains outside this milestone; their existing presets and bindings continue.
+- One-click configuration reads existing local conversation metadata and prepares the
+  managed preset. It does not create a chat, activate a turn, insert text or send a test
+  message. Choosing a conversation requests navigation and attempts verified input focus.
+  Use the documented `codex://threads/<id>` URL, then independently check the actual app,
+  current content, thread/project evidence and input. A successful URL-open request is
+  not evidence of successful navigation or focus.
+- Use the chosen app's bundled Codex CLI, resolved from its actual application path and
+  `com.openai.codex` identity, rather than assuming its filename or a Homebrew CLI version.
+  The short-lived stdio app-server client allows only initialize/initialized/thread/list,
+  requests state-DB-only listing, and bounds time, pagination and output. Exceeding limits
+  fails the whole read; never silently import a truncated catalog.
+- The catalog retains only a safe thread UUID, the explicit name (or an ID-based fallback),
+  and a normalized absolute local `cwd`. Group by that exact path; do not assume it covers
+  other worktrees. Ignore preview, turns and runtime status; never retain or log raw replies,
+  transcript text or server diagnostics. Stable title/ID ordering prevents recency updates
+  from moving the remote's next selection during use. A refreshed title/path/app identity
+  must not be hidden by stale saved metadata or treated as a verified binding.
+- A private app-server's loaded state is not the desktop server's live turn state.
+  `thread/list` supplies no active turn ID, while `turn/steer` requires the same server's
+  active `expectedTurnId`. Do not resume/start a duplicate thread or use the catalog process
+  to steer the desktop session. The native product executes locally through guarded app
+  capabilities; it does not call this development chat's Codex MCP tools.
+- Keep the catalog ephemeral; persist a managed workspace when the user selects it.
+  Give each newly imported thread/path its own workspace UUID. Reuse only an existing
+  managed identity for that same thread and scope; never borrow a legacy profile's UUID
+  or draft. Refreshes preserve custom button actions and shortcuts. Managed duplication
+  must not create ambiguous identities that make later catalog refresh/navigation fail.
+- The managed preset is explicit and separate from ordinary Codex defaults: up/down moves
+  within the current project's conversations, left/right moves between projects, and OK
+  confirms input. These navigation/confirmation actions never repeat. Device-specific HID
+  calibration remains shared, and the voice key remains reserved for ATVV.
+- First OK inserts the settled draft into the verified target and prepares a full-text
+  review when submission checks pass. A separate OK in the review or explicit confirmation
+  button submits it. Prioritize an observed, enabled Steer control for the current task;
+  never treat approval prompts or structured questions as permission to steer or send.
+  Recheck text, destination, runtime control and device guards at execution. Unsupported
+  capabilities or uncertain insertion/submission preserve the draft for manual checking;
+  repeated confirmation must not silently append or retransmit uncertain text.
+- Optional `codexConversation` keeps legacy schema-1 profiles readable and their behavior
+  unchanged. Profiles using this descriptor or the new actions require 0.2.6+; preserve
+  backups before downgrading to an older strict decoder.
+- Actual Codex UI automation was denied during this development turn. Do not bypass that
+  denial through another UI technology or describe synthetic fixtures as real acceptance.
+  Navigation, input focus, insertion, idle send, active-task Steer and remote use still need
+  permitted real-app/hardware verification. Record that evidence separately from test/build
+  results and installed version checks.
+
+Protocol references: [App Server](https://learn.chatgpt.com/docs/app-server) and
+[Codex deep links](https://learn.chatgpt.com/docs/reference/commands#deep-links).
+Use the installed bundled CLI's generated schema to check version-specific fields;
+experimental project APIs are not required by this milestone.

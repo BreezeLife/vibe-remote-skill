@@ -30,6 +30,12 @@ Version 0.2.5 lists nearby remote candidates for explicit selection, remembers t
 and retries unexpected idle disconnects up to three times. Manual stops and capture-time
 disconnects require a fresh user connection action.
 
+Version 0.2.6 adds one-click Codex setup and an in-app test guide. It reads local project/session
+metadata, then attempts verified input focus after deliberate selection. Up/down switches sessions
+within a project; left/right switches projects. Each session owns its draft. The first OK inserts
+and reviews; a second explicit confirmation submits, preferring an observed Steer control.
+Configuration and observed checks are separate; real Codex compatibility still needs user acceptance.
+
 On-device recognition is required by default. An explicit opt-in allows Apple's
 speech service when local recognition is unavailable. The app does not persist audio
 or transcript history. Copy any text you need before quitting.

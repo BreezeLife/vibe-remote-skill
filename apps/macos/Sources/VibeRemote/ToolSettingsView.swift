@@ -8,6 +8,7 @@ struct ToolSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             SettingsHeading(title: "编程工具", detail: "先选择应用，再绑定具体工作区。安装状态、绑定配置与真实动作的检查结果分别显示。")
+            CodexSetupView(model: model)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(model.installedTools) { tool in
                     GroupBox {
@@ -66,19 +67,27 @@ private struct WorkspaceEditor: View {
         _thread = State(initialValue: profile.codexThreadURL ?? "")
     }
     private var current: WorkspaceProfile { model.settings.workspaces.first { $0.id == profile.id } ?? profile }
+    private var isManagedCodex: Bool { current.codexConversation != nil }
+    private var defaultButtonActions: [ButtonActionMapping] {
+        isManagedCodex ? CodingToolPreset.codexConversationActions :
+            CodingToolPreset.matching(bundleIdentifier: current.bundleIdentifier)?.buttonActions ?? []
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Text("工作区设置").font(.title2.bold())
                 Spacer()
-                Button("复制工作区") { model.duplicateWorkspace(current) }.disabled(!model.canEdit)
+                Button("复制工作区") { model.duplicateWorkspace(current) }
+                    .disabled(!model.canEdit || isManagedCodex)
+                    .help(isManagedCodex ? "每个 Codex 会话自动保留独立草稿；请从会话列表选择其他会话。" :
+                          "复制当前工作区配置，草稿独立保留。")
             }
             if let preset = CodingToolPreset.matching(bundleIdentifier: current.bundleIdentifier) {
                 GroupBox("\(preset.title) 按键方案") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(current.buttonActions == nil ? "沿用已有通用配置；可主动应用本工具默认方案。" :
-                             current.buttonActions == preset.buttonActions && current.shortcuts.isEmpty ?
+                             current.buttonActions == defaultButtonActions && current.shortcuts.isEmpty ?
                              "已使用默认方案；动作只作用于这个工作区。" : "已使用自定义方案；动作只作用于这个工作区。")
                             .font(.callout)
                         HStack {
@@ -90,10 +99,11 @@ private struct WorkspaceEditor: View {
                                 GridRow {
                                     Text("实体按键").bold(); Text("单击").bold(); Text("按住 / 长按").bold()
                                 }
-                                ForEach(preset.buttonActions, id: \.button) { action in
+                                ForEach(defaultButtonActions, id: \.button) { action in
                                     GridRow {
                                         Text(action.button.label)
-                                        Text(action.button == .mic ? "—" : action.button == .ok ? "确认选择 / 预览并确认发送" : action.single.label)
+                                        Text(action.button == .mic ? "—" : action.button == .ok ?
+                                             (isManagedCodex ? "确认输入 / 确认提交" : "确认选择 / 预览并确认发送") : action.single.label)
                                         Text(action.button == .mic ? "按住说话，松开成稿" :
                                              action.long?.label ?? (action.single.allowsRepeat ? "持续\(action.single.label)" : "—"))
                                             .foregroundStyle(.secondary)
@@ -101,7 +111,9 @@ private struct WorkspaceEditor: View {
                                 }
                             }.font(.caption).padding(.top, 8)
                         }
-                        Text("三种工具保持相同按键习惯，目标跟随工作区。默认不启用双击。语音专用键无需 HID 学习；其他实体键仍需学习，目标输入与发送/停止控件仍需绑定。")
+                        Text(isManagedCodex ?
+                             "Codex 一键配置方案：上 / 下切换当前项目会话，OK 确认输入，再次确认后提交。语音专用键无需 HID 学习；其他实体键需学习并完成独占校准。" :
+                             "默认不启用双击。语音专用键无需 HID 学习；其他实体键仍需学习，目标输入与发送/停止控件仍需绑定。")
                             .font(.caption).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 }
@@ -110,13 +122,17 @@ private struct WorkspaceEditor: View {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("工作区名称", text: $name)
                     TextField("预览地址 · https://…", text: $preview)
-                    if current.bundleIdentifier == "com.openai.codex" {
+                    if current.bundleIdentifier == "com.openai.codex", !isManagedCodex {
                         TextField("精确会话入口 · codex://threads/…（可选）", text: $thread)
                     }
                     if current.bundleIdentifier == "com.openai.codex" {
                         HStack {
-                            Button("打开绑定会话", action: model.openCodexThread).disabled(current.codexThreadURL == nil)
-                            Button("在 Codex 预填新草稿", action: model.prefillNewCodexDraft).disabled(!model.voice.canCopy)
+                            if isManagedCodex {
+                                Button("打开并聚焦此会话") { model.openCodexSession(current.id) }
+                            } else {
+                                Button("打开绑定会话", action: model.openCodexThread).disabled(current.codexThreadURL == nil)
+                                Button("在 Codex 预填新草稿", action: model.prefillNewCodexDraft).disabled(!model.voice.canCopy)
+                            }
                         }
                     }
                     HStack {
@@ -124,7 +140,7 @@ private struct WorkspaceEditor: View {
                             var updated = current
                             updated.name = name
                             updated.previewURL = preview.isEmpty ? nil : preview
-                            updated.codexThreadURL = thread.isEmpty ? nil : thread
+                            if !isManagedCodex { updated.codexThreadURL = thread.isEmpty ? nil : thread }
                             model.updateWorkspace(updated)
                         }
                         Text("会话入口只用于定位；不会自动新建或发送。")
@@ -132,52 +148,58 @@ private struct WorkspaceEditor: View {
                     }
                 }.textFieldStyle(.roundedBorder).padding(8)
             }.disabled(!model.canEdit)
-            GroupBox("绑定输入与会话") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("每步有 5 秒准备时间。先点击目标输入框，再把鼠标停在当前会话独有的标题上。不要选择侧栏中其他会话的标题。")
-                        .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        Button("1. 学习输入框") { model.learn(.input, for: current) }
-                        Button("2. 学习会话标题") { model.learn(.anchor, for: current) }
-                            .disabled(!model.hasLearnedInput(for: current.id))
-                        Button("测试聚焦") { model.perform(.focusTarget) }.disabled(current.binding == nil)
-                    }
-                    if let binding = current.binding {
-                        Text("已保存窗口：\(binding.windowTitle)\n会话标记：\(binding.taskAnchor.label ?? binding.taskAnchor.identifier ?? "")\n绑定版本：\(binding.appVersion)")
-                            .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                    } else {
-                        Text(model.hasLearnedInput(for: current.id) ? "输入框已暂存，继续学习会话标题。" : "尚未绑定；仅安装应用不会启用自动输入。")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
-            }.disabled(!model.canEdit || !model.accessibilityGranted)
-            GroupBox("发送与停止") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("分别把鼠标停在真正的发送、停止生成按钮上学习。停止按钮可能只在任务运行时出现；没有可确认的状态时保持禁用。")
-                        .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        Button("学习发送按钮") { model.learn(.send, for: current) }
-                        Button("学习停止按钮") { model.learn(.stop, for: current) }
-                        Spacer()
-                        Button("停止当前任务") { stopping = true }
-                            .disabled(current.binding?.stopControl == nil)
-                    }.disabled(current.binding == nil || !model.canEdit || !model.accessibilityGranted)
-                    ForEach(model.adapter.describeCapabilities(for: current)) { capability in
-                        HStack(alignment: .top) {
-                            Text(capability.action.label).frame(width: 125, alignment: .leading)
-                            Text(model.capabilityDescription(capability, for: current)).foregroundStyle(.secondary)
-                        }.font(.caption)
-                    }
-                    if let results = model.capabilityResults[current.id], !results.isEmpty {
-                        Divider()
-                        Text("本次运行的操作结果").font(.caption.bold())
-                        ForEach(Array(results.suffix(4).enumerated()), id: \.offset) { _, result in
-                            Text(result).font(.caption).foregroundStyle(.secondary)
+            if isManagedCodex {
+                Text("此会话使用 Codex 实时定位。请在上方查看安装、会话定位、输入与提交的独立检查结果；无法确认能力时仍保留草稿。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                GroupBox("绑定输入与会话") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("每步有 5 秒准备时间。先点击目标输入框，再把鼠标停在当前会话独有的标题上。不要选择侧栏中其他会话的标题。")
+                            .font(.callout).foregroundStyle(.secondary)
+                        HStack {
+                            Button("1. 学习输入框") { model.learn(.input, for: current) }
+                            Button("2. 学习会话标题") { model.learn(.anchor, for: current) }
+                                .disabled(!model.hasLearnedInput(for: current.id))
+                            Button("测试聚焦") { model.perform(.focusTarget) }.disabled(current.binding == nil)
                         }
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                        if let binding = current.binding {
+                            Text("已保存窗口：\(binding.windowTitle)\n会话标记：\(binding.taskAnchor.label ?? binding.taskAnchor.identifier ?? "")\n绑定版本：\(binding.appVersion)")
+                                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        } else {
+                            Text(model.hasLearnedInput(for: current.id) ? "输入框已暂存，继续学习会话标题。" : "尚未绑定；仅安装应用不会启用自动输入。")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                }.disabled(!model.canEdit || !model.accessibilityGranted)
+                GroupBox("发送与停止") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("分别把鼠标停在真正的发送、停止生成按钮上学习。停止按钮可能只在任务运行时出现；没有可确认的状态时保持禁用。")
+                            .font(.callout).foregroundStyle(.secondary)
+                        HStack {
+                            Button("学习发送按钮") { model.learn(.send, for: current) }
+                            Button("学习停止按钮") { model.learn(.stop, for: current) }
+                            Spacer()
+                            Button("停止当前任务") { stopping = true }
+                                .disabled(current.binding?.stopControl == nil)
+                        }.disabled(current.binding == nil || !model.canEdit || !model.accessibilityGranted)
+                        ForEach(model.adapter.describeCapabilities(for: current)) { capability in
+                            HStack(alignment: .top) {
+                                Text(capability.action.label).frame(width: 125, alignment: .leading)
+                                Text(model.capabilityDescription(capability, for: current)).foregroundStyle(.secondary)
+                            }.font(.caption)
+                        }
+                        if let results = model.capabilityResults[current.id], !results.isEmpty {
+                            Divider()
+                            Text("本次运行的操作结果").font(.caption.bold())
+                            ForEach(Array(results.suffix(4).enumerated()), id: \.offset) { _, result in
+                                Text(result).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                }
+                ShortcutSettingsView(model: model, workspace: current)
             }
-            ShortcutSettingsView(model: model, workspace: current)
         }
         .alert("停止这个工作区正在运行的任务？", isPresented: $stopping) {
             Button("取消", role: .cancel) { }

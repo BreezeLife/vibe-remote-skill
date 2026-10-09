@@ -25,6 +25,7 @@ public enum RemoteButton: String, Codable, CaseIterable, Identifiable {
 public enum RemoteAction: String, Codable, CaseIterable, Identifiable {
     case none, workspacePicker, actionPicker, focusTarget, copyDraft, insertDraft, sendDraft
     case cancel, stopTask, previousWorkspace, nextWorkspace, scrollUp, scrollDown, preview, volumeUp, volumeDown
+    case previousConversation, nextConversation, confirmInput
     public var id: String { rawValue }
     public var label: String {
         switch self {
@@ -39,6 +40,9 @@ public enum RemoteAction: String, Codable, CaseIterable, Identifiable {
         case .stopTask: return "停止当前任务"
         case .previousWorkspace: return "上一个工作区"
         case .nextWorkspace: return "下一个工作区"
+        case .previousConversation: return "上一个会话"
+        case .nextConversation: return "下一个会话"
+        case .confirmInput: return "确认输入"
         case .scrollUp: return "向上滚动"
         case .scrollDown: return "向下滚动"
         case .preview: return "打开预览"
@@ -164,13 +168,16 @@ public struct WorkspaceProfile: Codable, Equatable, Identifiable {
     public var codexThreadURL: String?
     public var shortcuts: [ActionShortcut]
     public var buttonActions: [ButtonActionMapping]?
+    public var codexConversation: CodexConversation?
     public init(id: UUID = UUID(), name: String, bundleIdentifier: String, appPath: String? = nil,
                 binding: ToolBinding? = nil, previewURL: String? = nil, codexThreadURL: String? = nil,
-                shortcuts: [ActionShortcut] = [], buttonActions: [ButtonActionMapping]? = nil) {
+                shortcuts: [ActionShortcut] = [], buttonActions: [ButtonActionMapping]? = nil,
+                codexConversation: CodexConversation? = nil) {
         self.id = id; self.name = name; self.bundleIdentifier = bundleIdentifier; self.appPath = appPath
         self.binding = binding; self.previewURL = previewURL; self.codexThreadURL = codexThreadURL
         self.shortcuts = shortcuts
         self.buttonActions = buttonActions
+        self.codexConversation = codexConversation
     }
 }
 
@@ -259,6 +266,12 @@ private extension WorkspaceProfile {
         try require(bundleIdentifier.count <= 255 && matches(bundleIdentifier, "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+$"),
                     "应用标识无效")
         let bundle = bundleIdentifier.lowercased()
+        if let codexConversation {
+            try codexConversation.validate()
+            try require(bundleIdentifier == "com.openai.codex" &&
+                        codexThreadURL == codexConversation.canonicalURL.absoluteString,
+                        "Codex 会话描述与目标应用或会话地址不一致")
+        }
         let terminalBundles: Set<String> = ["dev.warp.warp-stable", "dev.warp.warp-preview", "com.mitchellh.ghostty",
                                             "net.kovidgoyal.kitty", "org.alacritty", "org.wezfurlong.wezterm",
                                             "co.zeit.hyper", "com.googlecode.iterm2"]
@@ -404,7 +417,7 @@ extension ActionShortcut {
 }
 
 extension WorkspaceProfile {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case id, name, bundleIdentifier, appPath, binding, previewURL, codexThreadURL, shortcuts, buttonActions }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case id, name, bundleIdentifier, appPath, binding, previewURL, codexThreadURL, shortcuts, buttonActions, codexConversation }
     public init(from decoder: Decoder) throws {
         let values = try strictContainer(decoder, CodingKeys.self)
         self.init(id: try values.decode(UUID.self, forKey: .id), name: try values.decode(String.self, forKey: .name),
@@ -414,7 +427,8 @@ extension WorkspaceProfile {
                   previewURL: try values.decodeIfPresent(String.self, forKey: .previewURL),
                   codexThreadURL: try values.decodeIfPresent(String.self, forKey: .codexThreadURL),
                   shortcuts: try values.decode([ActionShortcut].self, forKey: .shortcuts),
-                  buttonActions: try values.decodeIfPresent([ButtonActionMapping].self, forKey: .buttonActions))
+                  buttonActions: try values.decodeIfPresent([ButtonActionMapping].self, forKey: .buttonActions),
+                  codexConversation: try values.decodeIfPresent(CodexConversation.self, forKey: .codexConversation))
     }
 }
 

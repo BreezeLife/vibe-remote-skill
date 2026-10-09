@@ -66,6 +66,21 @@ private final class IntegrationHID: HIDRemoteDriver {
     func disconnect() { onInterfacesChanged?([]) }
 }
 
+private final class IntegrationCatalog: CodexConversationListing {
+    var conversations: [CodexConversation] = [
+        CodexConversation(id: "00000000-0000-0000-0000-000000000101", title: "Alpha", projectPath: "/tmp/A"),
+        CodexConversation(id: "00000000-0000-0000-0000-000000000102", title: "Beta", projectPath: "/tmp/A"),
+        CodexConversation(id: "00000000-0000-0000-0000-000000000103", title: "Gamma", projectPath: "/tmp/B")
+    ]
+    var fails = false
+    var requestedPaths: [String] = []
+    func listConversations(appPath: String) async throws -> [CodexConversation] {
+        requestedPaths.append(appPath)
+        if fails { throw NSError(domain: "SyntheticCatalog", code: 1) }
+        return conversations
+    }
+}
+
 @MainActor private final class IntegrationAX: ToolAXDriver {
     var isTrusted = true
     var text = "existing synthetic input"
@@ -79,6 +94,12 @@ private final class IntegrationHID: HIDRemoteDriver {
     var frontmostPID: Int32? = 42
     var focusedNodeID: String? = "input"
     var complete = true
+    var installedCodex = false
+    var appPath = "/Applications/Synthetic.app"
+    var urlTitles: [String: String] = [:]
+    var openedURLs: [String] = []
+    var failAfterWrite = false
+    var failPress = false
     var windows = [ToolAXNode(id: "window", role: "AXWindow", label: "Synthetic Project", children: [
         ToolAXNode(id: "input", role: "AXTextArea", identifier: "composer", label: "Message", editable: true,
                    enabled: true, visible: true, contentScopeID: "synthetic-main"),
@@ -90,9 +111,18 @@ private final class IntegrationHID: HIDRemoteDriver {
                    actions: ["AXPress"], visible: true, contentScopeID: "synthetic-main")
     ])]
     func requestPermission() { fatalError("Unexpected permission request") }
-    func installedApplication(bundleIdentifier: String) -> ToolApplication? { nil }
+    func installedApplication(bundleIdentifier: String) -> ToolApplication? {
+        guard installedCodex, bundleIdentifier == "com.openai.codex" else { return nil }
+        return ToolApplication(bundleIdentifier: bundleIdentifier, path: self.appPath, version: "1.0", processID: 42)
+    }
+    func openURL(_ url: URL, for application: ToolApplication) async throws {
+        openedURLs.append(url.absoluteString)
+        if activationPaused { await withCheckedContinuation { activationContinuation = $0 } }
+        windows[0].url = url.absoluteString
+        windows[0].children[1].label = urlTitles[url.absoluteString] ?? "Unknown Synthetic Task"
+    }
     func application(bundleIdentifier: String, appPath: String?) throws -> ToolApplication {
-        ToolApplication(bundleIdentifier: bundleIdentifier, path: "/Applications/Synthetic.app", version: "1.0", processID: 42)
+        ToolApplication(bundleIdentifier: bundleIdentifier, path: self.appPath, version: "1.0", processID: 42)
     }
     func application(at url: URL) throws -> ToolApplication { fatalError("Unexpected app lookup") }
     func activate(_ application: ToolApplication) async throws {
@@ -111,10 +141,14 @@ private final class IntegrationHID: HIDRemoteDriver {
             focusedNodeID: focusedNodeID, pointerNodeID: "anchor", windows: windows, complete: complete)
     }
     func value(of node: ToolAXNode) throws -> String { text }
-    func setValue(_ value: String, of node: ToolAXNode) throws { writes.append(value); text = value }
+    func setValue(_ value: String, of node: ToolAXNode) throws {
+        writes.append(value); text = value
+        if failAfterWrite { complete = false }
+    }
     func focus(_ node: ToolAXNode) throws { focuses += 1; focusedNodeID = node.id }
     func perform(_ action: String, on node: ToolAXNode) throws {
         presses.append(node.id)
+        if failPress { throw NSError(domain: "SyntheticPress", code: 1) }
         if node.id == "send" { windows[0].children[3].enabled = true; windows[0].children[2].enabled = false; text = "" }
     }
     func pressShortcut(_ shortcut: ActionShortcut, processID: Int32) throws { fatalError("Unexpected shortcut") }
@@ -127,6 +161,7 @@ private final class IntegrationHID: HIDRemoteDriver {
     let speech = IntegrationSpeech()
     let input = IntegrationHID()
     let ax = IntegrationAX()
+    let catalog = IntegrationCatalog()
     let voice: RemoteModel
     let hid: HIDRemoteInputService
     let controls: ControlsModel
@@ -151,9 +186,14 @@ private final class IntegrationHID: HIDRemoteDriver {
         try store.save(settings)
         voice = RemoteModel(bluetooth: bluetooth, speech: speech)
         hid = HIDRemoteInputService(driver: input)
-        controls = ControlsModel(voice: voice, store: store, hid: hid, adapter: ToolAdapter(driver: ax), showWindow: {})
+        controls = ControlsModel(voice: voice, store: store, hid: hid, adapter: ToolAdapter(driver: ax, navigationTimeout: 0.02), showWindow: {}, codexCatalog: catalog)
         controls.selectWorkspace(first.id)
         voice.replaceDraft("synthetic alpha draft")
+    }
+    func prepareCatalog() {
+        ax.installedCodex = true
+        ax.urlTitles = Dictionary(uniqueKeysWithValues: catalog.conversations.map { ($0.canonicalURL.absoluteString, $0.title) })
+        controls.configureCodex()
     }
     func seize() {
         hid.discover(); hid.seize(deviceID: "synthetic-remote")
@@ -522,6 +562,179 @@ private final class IntegrationHID: HIDRemoteDriver {
                 f.controls.perform(.sendDraft); await settle(f)
                 check(f.controls.pendingSend == nil && f.ax.presses.isEmpty, "unknown live state cannot create a send review")
             }
+        }
+        await run("Codex confirm inserts once and prepares explicit review") { f in
+            let conversation = CodexConversation(id: "00000000-0000-0000-0000-000000000101", title: "Synthetic Task", projectPath: "/tmp/Synthetic")
+            _ = f.controls.updateSettings { config in
+                config.workspaces[0].bundleIdentifier = "com.openai.codex"
+                config.workspaces[0].codexConversation = conversation
+                config.workspaces[0].codexThreadURL = conversation.canonicalURL.absoluteString
+                config.workspaces[0].buttonActions = CodingToolPreset.codexConversationActions
+            }
+            f.ax.windows[0].url = conversation.canonicalURL.absoluteString
+            f.seize()
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.controls.pendingSend != nil,
+                  "first confirm inserts the settled draft and opens full-text review")
+            check(f.ax.presses.isEmpty, "first confirm never submits without the second confirmation")
+            f.controls.pendingSend = nil
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.controls.pendingSend != nil,
+                  "reopening confirmation reuses the exact receipt without appending twice")
+        }
+        await run("one-click prepares metadata without adopting legacy drafts or touching UI") { f in
+            let original = f.controls.settings
+            f.prepareCatalog(); await settle(f)
+            check(f.catalog.requestedPaths == [f.ax.appPath], "uses discovered app path")
+            check(f.controls.codexProjectPaths == ["/tmp/A", "/tmp/B"], "groups by local project path")
+            check(f.controls.codexSessionProfiles.map { $0.codexConversation!.title } == ["Alpha", "Beta"], "stable scoped order")
+            check(f.controls.settings == original && f.voice.draft.text == "synthetic alpha draft", "metadata import preserves saved profiles and draft")
+            check(f.ax.openedURLs.isEmpty && f.ax.focuses == 0 && f.ax.writes.isEmpty && f.ax.presses.isEmpty, "one-click catalog never mutates target UI")
+            check(f.controls.codexChecks["navigation"] == nil && f.controls.codexChecks["input"] == nil, "metadata never claims live verification")
+        }
+        await run("managed navigation scopes sessions and preserves per-conversation drafts") { f in
+            f.prepareCatalog(); await settle(f)
+            let alpha = f.controls.codexSessionProfiles[0].id
+            let beta = f.controls.codexSessionProfiles[1].id
+            f.controls.openCodexSession(alpha); await settle(f)
+            check(f.voice.workspaceID == alpha && f.voice.draft.text.isEmpty && f.controls.workspace?.binding != nil, "new conversation has a fresh draft and auto binding")
+            check(f.controls.settings.workspaces.count == 3, "only selected metadata is persisted")
+            f.voice.replaceDraft("alpha private draft")
+            f.controls.perform(.nextConversation); await settle(f)
+            check(f.voice.workspaceID == beta && f.voice.draft.text.isEmpty, "down selects Beta with independent draft")
+            f.voice.replaceDraft("beta private draft")
+            f.controls.perform(.previousConversation); await settle(f)
+            check(f.voice.workspaceID == alpha && f.voice.draft.text == "alpha private draft", "return restores Alpha draft")
+            let opened = f.ax.openedURLs.count
+            f.controls.perform(.previousConversation); await settle(f)
+            check(f.voice.workspaceID == alpha && f.ax.openedURLs.count == opened, "first session cannot wrap to another project")
+            f.controls.perform(.nextWorkspace); await settle(f)
+            check(f.controls.workspace?.codexConversation?.projectPath == "/tmp/B", "right switches project")
+            f.controls.perform(.previousWorkspace); await settle(f)
+            check(f.voice.workspaceID == alpha && f.voice.draft.text == "alpha private draft", "left restores last session of project")
+            check(f.ax.writes.isEmpty && f.ax.presses.isEmpty, "navigation never inserts or submits")
+        }
+        await run("catalog refresh keeps custom actions and refreshes titles and app location") { f in
+            f.prepareCatalog(); await settle(f)
+            let id = f.controls.codexSessionProfiles[0].id
+            f.controls.openCodexSession(id); await settle(f)
+            f.controls.selectedButton = .ok
+            _ = f.controls.updateMapping { $0.single = .copyDraft }
+            let old = f.catalog.conversations[0]
+            f.catalog.conversations[0] = CodexConversation(id: old.id, title: "Renamed Alpha", projectPath: old.projectPath)
+            f.ax.appPath = "/Applications/SyntheticRenamed.app"
+            f.prepareCatalog(); await settle(f)
+            check(f.controls.codexSessionProfiles.first { $0.id == id }?.codexConversation?.title == "Renamed Alpha", "list shows fresh title")
+            f.controls.openCodexSession(id); await settle(f)
+            check(f.controls.workspace?.appPath == f.ax.appPath && f.controls.workspace?.codexConversation?.title == "Renamed Alpha", "refresh updates destination metadata")
+            check(f.controls.mapping.single == .copyDraft, "custom action remains intact")
+        }
+        await run("failed catalog preserves previous selection directory and draft") { f in
+            f.prepareCatalog(); await settle(f)
+            let ids = f.controls.codexSessionProfiles.map(\.id)
+            f.catalog.fails = true
+            f.controls.configureCodex(); await settle(f)
+            check(f.controls.codexSessionProfiles.map(\.id) == ids, "failure does not replace usable catalog")
+            check(f.voice.workspaceID == f.first.id && f.voice.draft.text == "synthetic alpha draft", "failure preserves selected legacy draft")
+        }
+        await run("capture during navigation cancels focus and keeps intended draft ownership") { f in
+            f.prepareCatalog(); await settle(f)
+            let id = f.controls.codexSessionProfiles[0].id
+            f.ax.activationPaused = true
+            f.controls.openCodexSession(id)
+            await waitUntil("pending navigation") { f.ax.activationContinuation != nil }
+            check(f.voice.workspaceID == id, "requested destination owns new utterance before await")
+            f.bluetooth.stream(true)
+            f.ax.resumeActivation(); await settle(f)
+            check(f.ax.focuses == 0 && f.ax.writes.isEmpty, "capture prevents delayed focus or input")
+            check(f.controls.workspace?.binding == nil, "cancelled navigation never claims a binding")
+        }
+        await run("conversation switch invalidates pending confirmation and prior checks") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("review alpha")
+            f.seize(); f.controls.perform(.confirmInput); await settle(f)
+            check(f.controls.pendingSend != nil, "first session prepares review")
+            f.controls.perform(.nextConversation); await settle(f)
+            check(f.controls.pendingSend == nil && f.controls.codexChecks["submission"] == nil && f.controls.codexChecks["input"] == nil, "new session cannot inherit review or live results")
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses.isEmpty, "old confirmation cannot send in new conversation")
+        }
+        await run("managed first idle input needs no manually learned Stop") { f in
+            f.ax.windows[0].children.removeLast()
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("idle synthetic draft"); f.seize()
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.controls.workspace?.binding?.stopControl == nil && f.controls.pendingSend?.confirmation.kind == .send, "complete exact-target idle scope prepares normal send")
+        }
+        await run("no exclusive device permits insertion but blocks submission review") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("insert only")
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.controls.pendingSend == nil && f.ax.presses.isEmpty, "unverified HID cannot authorize sending")
+        }
+        await run("managed Steer takes priority over Send and requires second confirmation") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.ax.windows[0].children.append(ToolAXNode(id: "steer", role: "AXButton", identifier: "steer", label: "Steer", enabled: true,
+                actions: ["AXPress"], visible: true, contentScopeID: "synthetic-main"))
+            f.ax.windows[0].children[3].enabled = true
+            f.voice.replaceDraft("steer synthetic draft"); f.seize()
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.controls.pendingSend?.confirmation.kind == .steer && f.ax.presses.isEmpty, "first OK prepares explicit Steer review")
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses == ["steer"], "second confirmation chooses only Steer")
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.ax.presses == ["steer"] && f.controls.pendingSend == nil, "uncertain dispatch cannot automatically append or resubmit retained draft")
+        }
+        await run("uncertain insertion cannot append twice on repeated confirmation") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("uncertain write"); f.seize(); f.ax.failAfterWrite = true
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.controls.pendingSend == nil, "failed readback leaves no send review")
+            f.ax.failAfterWrite = false; f.ax.complete = true
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.controls.pendingSend == nil, "repeated OK blocks uncertain earlier insertion")
+        }
+        await run("throwing submit cannot be blindly retried") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("uncertain submit"); f.seize()
+            f.controls.perform(.confirmInput); await settle(f)
+            f.ax.failPress = true
+            f.controls.confirmSend(); await settle(f)
+            f.ax.failPress = false
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1 && f.ax.presses.count == 1 && f.controls.pendingSend == nil, "mutation error consumes submission attempt")
+        }
+        await run("new instruction after confirmed submit requires explicit draft reset") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            f.voice.replaceDraft("first synthetic instruction"); f.seize()
+            f.controls.perform(.confirmInput); await settle(f)
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses == ["send"] && f.voice.draft.text == "first synthetic instruction", "confirmed send preserves original draft")
+            f.voice.replaceDraft("first synthetic instruction\nnew synthetic instruction")
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 1, "dictation appended to submitted text cannot resend old prefix")
+            f.voice.replaceDraft("")
+            f.voice.replaceDraft("new synthetic instruction")
+            f.ax.windows[0].children[3].enabled = false; f.ax.windows[0].children[2].enabled = true
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.ax.writes.count == 2 && f.ax.text == "new synthetic instruction" && f.controls.pendingSend != nil,
+                "explicit empty reset permits a fresh instruction")
+        }
+        await run("managed copy does not create ambiguous conversation identities") { f in
+            f.prepareCatalog(); await settle(f)
+            f.controls.openCodexSession(f.controls.codexSessionProfiles[0].id); await settle(f)
+            let count = f.controls.settings.workspaces.count
+            f.controls.duplicateWorkspace(f.controls.workspace!)
+            check(f.controls.settings.workspaces.count == count, "managed conversation cannot be duplicated")
+            f.controls.configureCodex(); await settle(f)
+            check(!f.controls.codexSetupStatus.contains("未完成"), "refresh remains usable after copy attempt")
         }
         print("\(scenarios) controls integration scenarios, \(assertions) assertions, \(failures) failures")
         exit(failures == 0 ? 0 : 1)

@@ -49,6 +49,8 @@ jobs:
         run: bash scripts/test_macos_tools.sh
       - name: Native settings persistence checks
         run: bash scripts/test_macos_controls.sh
+      - name: Read-only Codex catalog checks
+        run: bash scripts/test_macos_catalog.sh
       - name: Native controls integration checks
         run: bash scripts/test_macos_integration.sh
       - name: Build and verify app bundle

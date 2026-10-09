@@ -23,6 +23,18 @@ public enum CodingToolPreset: String, CaseIterable, Identifiable {
     public var buttonActions: [ButtonActionMapping] {
         NativeSettings.defaultMappings.map(ButtonActionMapping.init)
     }
+    public static var codexConversationActions: [ButtonActionMapping] {
+        codex.buttonActions.map { mapping in
+            var result = mapping
+            switch result.button {
+            case .up: result.single = .previousConversation
+            case .down: result.single = .nextConversation
+            case .ok: result.single = .confirmInput
+            default: break
+            }
+            return result
+        }
+    }
     public static func matching(bundleIdentifier: String) -> CodingToolPreset? {
         allCases.first { $0.bundleIdentifiers.contains(bundleIdentifier) }
     }

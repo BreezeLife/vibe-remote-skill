@@ -28,6 +28,14 @@ import VibeRemoteCore
     var shortcutFocusWorks = true
     var valuesRead = 0
     var focusHook: (() -> Void)?
+    var openedURLs: [URL] = []
+    var openHook: (() -> Void)?
+    var openPaused = false
+    var openContinuation: CheckedContinuation<Void, Never>?
+    var steerChangesState = true
+    var focuses = 0
+    var writeThrows = false
+    var pressThrows = false
     var isTrusted: Bool { trusted }
     func requestPermission() { fatalError("Tests must never request permission") }
     func application(bundleIdentifier: String, appPath: String?) throws -> ToolApplication {
@@ -39,18 +47,32 @@ import VibeRemoteCore
         if activationPaused { await withCheckedContinuation { activationContinuation = $0 } }
         if activationWorks { front = pid }
     }
+    func openURL(_ url: URL, for application: ToolApplication) async throws {
+        openedURLs.append(url)
+        if openPaused { await withCheckedContinuation { openContinuation = $0 } }
+        openHook?()
+    }
     func snapshot(_ application: ToolApplication) throws -> ToolAXObservation {
         snapshotHook?()
         return ToolAXObservation(processID: pid, frontmostPID: front, focusedWindowID: focusedWindow,
                                  focusedNodeID: focused, pointerNodeID: pointer, windows: windows, complete: complete)
     }
     func value(of node: ToolAXNode) throws -> String { valuesRead += 1; return text }
-    func setValue(_ value: String, of node: ToolAXNode) throws { writes += 1; if writeWorks { text = value } }
-    func focus(_ node: ToolAXNode) throws { if focusWorks { focused = node.id }; focusHook?() }
+    func setValue(_ value: String, of node: ToolAXNode) throws {
+        writes += 1
+        if writeThrows { throw ToolAdapterError("synthetic uncertain write") }
+        if writeWorks { text = value }
+    }
+    func focus(_ node: ToolAXNode) throws { focuses += 1; if focusWorks { focused = node.id }; focusHook?() }
     func perform(_ action: String, on node: ToolAXNode) throws {
         presses.append(node.id)
+        if pressThrows { throw ToolAdapterError("synthetic uncertain press") }
         if node.id == "send" && sendChangesState { setRunning(true); text = "" }
         if node.id == "stop" && stopChangesState { setRunning(false) }
+        if node.id == "steer" && steerChangesState {
+            text = ""
+            windows[0].children.removeAll { $0.id == "steer" }
+        }
     }
     func pressShortcut(_ shortcut: ActionShortcut, processID: Int32) throws {
         shortcuts.append(shortcut)
@@ -63,8 +85,13 @@ import VibeRemoteCore
         }
     }
     func setRunning(_ running: Bool) {
-        windows[0].children[3].enabled = running
-        windows[0].children[2].enabled = !running
+        if let stop = windows[0].children.firstIndex(where: { $0.id == "stop" }) {
+            windows[0].children[stop].enabled = running
+        } else if running {
+            windows[0].children.append(ToolAXNode(id: "stop", role: "AXButton", identifier: "stop", label: "Stop generating",
+                enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        }
+        if let send = windows[0].children.firstIndex(where: { $0.id == "send" }) { windows[0].children[send].enabled = !running }
     }
     func resetTree() {
         windows = [ToolAXNode(id: "window", role: "AXWindow", label: "Project Alpha", children: [
@@ -100,6 +127,19 @@ import VibeRemoteCore
                                   sendControl: send, stopControl: stop)
         let workspace = WorkspaceProfile(name: "Alpha", bundleIdentifier: "test.fake", binding: binding)
         return (driver, ToolAdapter(driver: driver), workspace)
+    }
+    func codexFixture() -> (FakeToolAXDriver, ToolAdapter, WorkspaceProfile, CodexConversation) {
+        let (driver, _, original) = fixture()
+        let conversation = CodexConversation(id: "11111111-1111-4111-8111-111111111111", title: "Task Alpha", projectPath: "/tmp/project-alpha")
+        var workspace = original
+        workspace.bundleIdentifier = "com.openai.codex"
+        workspace.codexConversation = conversation
+        driver.windows[0].url = "codex://threads/" + conversation.id
+        return (driver, ToolAdapter(driver: driver, navigationTimeout: 0.01), workspace, conversation)
+    }
+    func addSteer(_ driver: FakeToolAXDriver, label: String = "Steer now") {
+        driver.windows[0].children.append(ToolAXNode(id: "steer", role: "AXButton", identifier: "steer-current", label: label,
+            enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
     }
     do {
         let (d, a, w) = fixture()
@@ -350,6 +390,271 @@ import VibeRemoteCore
         let result = try await a.confirmSend(preview, for: w)
         check(!result.confirmed && d.presses.count == 1, "send AXPress is not task acceptance without observed transition")
     } catch { check(false, "unconfirmed send: \(error)") }
+    do {
+        let (d, a, original, conversation) = codexFixture(); var w = original
+        w.binding = nil; d.focused = "other"
+        let binding = try await a.openCodexConversation(w, knownConversations: [conversation])
+        check(d.openedURLs.map(\.absoluteString) == ["codex://threads/" + conversation.id], "navigation opens exact Codex URL once")
+        check(binding.taskAnchor.label == conversation.title && d.focused == "input", "exact live thread identity binds and focuses input")
+        check(d.writes == 0 && d.presses.isEmpty && d.valuesRead == 0, "navigation never reads or writes draft text or submits")
+        w.binding = binding
+        d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
+        await rejects("later insertion rechecks live thread identity") { _ = try await a.insert("draft", for: w) }
+        check(d.writes == 0, "new binding never authorizes a different current thread")
+    } catch { check(false, "Codex exact navigation: \(error)") }
+    do {
+        let (d, a, w, conversation) = codexFixture()
+        d.windows[0].url = nil
+        d.windows[0].children[0].documentURL = "file:///tmp/project-alpha"
+        await rejects("input metadata is not project evidence") { _ = try await a.openCodexConversation(w, knownConversations: [conversation]) }
+        d.windows[0].children[0].documentURL = nil
+        d.windows[0].documentURL = "file:///tmp/project-alpha/./"
+        let binding = try await a.openCodexConversation(w, knownConversations: [conversation])
+        check(binding.taskAnchor.label == "Task Alpha", "unique exact title plus observed normalized project path can bind")
+    } catch { check(false, "Codex title and project navigation: \(error)") }
+    for issue in ["wrongThread", "missingScope", "wrongProject", "duplicateTitle", "duplicateInput", "hidden", "sidebar", "wrongTitle", "incomplete", "modal", "unlisted", "wrongFocus"] {
+        let (d, a, w, conversation) = codexFixture()
+        var catalog = [conversation]
+        switch issue {
+        case "wrongThread": d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
+        case "missingScope": d.windows[0].url = nil
+        case "wrongProject": d.windows[0].documentURL = "file:///tmp/another-project"
+        case "duplicateTitle":
+            d.windows[0].url = nil; d.windows[0].documentURL = "file:///tmp/project-alpha"
+            catalog.append(CodexConversation(id: "22222222-2222-4222-8222-222222222222", title: conversation.title, projectPath: conversation.projectPath))
+        case "duplicateInput": var copy = d.windows[0].children[0]; copy.id = "second-input"; copy.identifier = "composer-two"; d.windows[0].children.append(copy)
+        case "hidden": d.windows[0].children[0].visible = false
+        case "sidebar": d.windows[0].children[1].inNavigation = true
+        case "wrongTitle": d.windows[0].children[1].label = "Task Beta"
+        case "incomplete": d.complete = false
+        case "modal": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXSheet", visible: true))
+        case "unlisted": catalog = []
+        case "wrongFocus": d.focused = "other"; d.focusWorks = false
+        default: break
+        }
+        await rejects("auto-binding rejects \(issue)") { _ = try await a.openCodexConversation(w, knownConversations: catalog) }
+        check(d.openedURLs.count <= 1 && d.writes == 0 && d.presses.isEmpty, "failed \(issue) navigation never retries URL or submits")
+    }
+    for change in ["cancel", "authorization", "version", "pid"] {
+        let (d, a, w, conversation) = codexFixture(); d.openPaused = true
+        var allowed = true
+        a.authorizeOperation = { if !allowed { throw ToolAdapterError("revoked") } }
+        d.focused = "other"
+        let task = Task { try await a.openCodexConversation(w, knownConversations: [conversation]) }
+        for _ in 0..<1_000 {
+            if d.openContinuation != nil { break }
+            await Task.yield()
+        }
+        guard let continuation = d.openContinuation else {
+            check(false, "navigation reaches URL operation for \(change)")
+            task.cancel()
+            continue
+        }
+        switch change {
+        case "cancel": task.cancel()
+        case "authorization": allowed = false
+        case "version": d.version = "2.0"
+        default: d.pid = 55
+        }
+        continuation.resume()
+        await rejects("navigation rejects \(change) during open") { _ = try await task.value }
+        check(d.focused == "other" && d.writes == 0 && d.presses.isEmpty, "stale \(change) navigation does not focus or submit")
+    }
+    do {
+        let (d, _, w, conversation) = codexFixture()
+        let a = ToolAdapter(driver: d, navigationTimeout: 0.07)
+        d.focused = "other"; d.focusWorks = false
+        await rejects("navigation reports unsupported input focus") { _ = try await a.openCodexConversation(w, knownConversations: [conversation]) }
+        check(d.focuses == 1, "navigation does not retry a focus mutation after failure")
+    }
+    do {
+        let (d, _, w, conversation) = codexFixture()
+        let a = ToolAdapter(driver: d, navigationTimeout: 0.1)
+        d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
+        var snapshots = 0
+        d.snapshotHook = {
+            snapshots += 1
+            if snapshots == 2 { d.windows[0].url = conversation.canonicalURL.absoluteString }
+        }
+        _ = try await a.openCodexConversation(w, knownConversations: [conversation])
+        check(d.openedURLs.count == 1 && snapshots >= 2, "delayed navigation polls evidence without reopening URL")
+    } catch { check(false, "delayed navigation: \(error)") }
+    for label in ["Steer", "Steer now", "立即引导"] {
+        do {
+            let (d, a, w, _) = codexFixture(); d.setRunning(true); addSteer(d, label: label)
+            let preview = try await a.prepareSend(for: w)
+            check(preview.kind == .steer, "live \(label) has priority over running task")
+            check(d.presses.isEmpty, "steer preparation requires explicit confirmation")
+            let result = try await a.confirmSend(preview, for: w)
+            check(result.confirmed && d.presses == ["steer"] && d.shortcuts.isEmpty, "steer confirmation presses only exact semantic control")
+            await rejects("steer confirmation is single use") { _ = try await a.confirmSend(preview, for: w) }
+        } catch { check(false, "Codex steer \(label): \(error)") }
+    }
+    do {
+        let (d, a, w, _) = codexFixture()
+        let preview = try await a.prepareSend(for: w)
+        check(preview.kind == .send, "idle Codex without steer preserves normal send")
+        addSteer(d)
+        await rejects("normal-send confirmation cannot silently turn into steer") { _ = try await a.confirmSend(preview, for: w) }
+        check(d.presses.isEmpty, "changed submission kind requires fresh explicit confirmation")
+        let steer = try await a.prepareSend(for: w)
+        check(steer.kind == .steer, "explicit steer takes precedence even when normal send is enabled")
+    } catch { check(false, "submission mode change: \(error)") }
+    for issue in ["changedToSend", "changedIdentity", "disabled", "duplicate", "approval", "thread", "text", "cancel"] {
+        do {
+            let (d, a, w, _) = codexFixture(); d.setRunning(true); addSteer(d)
+            let preview = try await a.prepareSend(for: w)
+            switch issue {
+            case "changedToSend": d.windows[0].children.removeLast(); d.setRunning(false)
+            case "changedIdentity": d.windows[0].children[4].identifier = "other-steer"
+            case "disabled": d.windows[0].children[4].enabled = false
+            case "duplicate": var copy = d.windows[0].children[4]; copy.id = "other"; d.windows[0].children.append(copy)
+            case "approval": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXButton", label: "Allow once", enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+            case "thread": d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
+            case "text": d.text = "changed"
+            default: a.authorizeOperation = { throw CancellationError() }
+            }
+            await rejects("steer confirmation rejects \(issue)") { _ = try await a.confirmSend(preview, for: w) }
+            check(d.presses.isEmpty && d.shortcuts.isEmpty, "changed \(issue) never falls through to normal send")
+        } catch { check(false, "steer invalidation fixture: \(error)") }
+    }
+    for issue in ["approval", "approveAndRun", "allowSession", "approvalCard", "modal", "hidden", "unknownVisibility", "navigation", "otherScope", "genericContinue", "duplicate"] {
+        let (d, a, w, _) = codexFixture(); d.setRunning(true); addSteer(d)
+        switch issue {
+        case "approval": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXButton", label: "Approve", enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        case "approveAndRun": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXButton", label: "Approve and run", enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        case "allowSession": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXButton", label: "Allow this session", enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        case "approvalCard": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXGroup", label: "Approval required", visible: true, contentScopeID: "main-content"))
+        case "modal": d.windows[0].modal = true
+        case "hidden": d.windows[0].children[4].visible = false
+        case "unknownVisibility": d.windows[0].children[4].visible = nil
+        case "navigation": d.windows[0].children[4].inNavigation = true
+        case "otherScope": d.windows[0].children[4].contentScopeID = "other"
+        case "genericContinue": d.windows[0].children[4].label = "Continue"
+        default: var copy = d.windows[0].children[4]; copy.id = "other"; d.windows[0].children.append(copy)
+        }
+        await rejects("steer rejects \(issue)") { _ = try await a.prepareSend(for: w) }
+        check(d.presses.isEmpty && d.shortcuts.isEmpty, "\(issue) never triggers approval or submission")
+    }
+    do {
+        let (d, a, w, _) = codexFixture(); d.setRunning(true); addSteer(d); d.steerChangesState = false
+        let preview = try await a.prepareSend(for: w)
+        let result = try await a.confirmSend(preview, for: w)
+        check(!result.confirmed && d.presses == ["steer"], "unchanged steer state reports uncertainty without retry")
+        await rejects("uncertain steer confirmation cannot retry") { _ = try await a.confirmSend(preview, for: w) }
+        check(d.presses.count == 1, "uncertain steer remains single press")
+    } catch { check(false, "uncertain steer: \(error)") }
+    do {
+        let (d, a, w) = fixture(); d.setRunning(true); addSteer(d)
+        await rejects("legacy profile does not infer steer support") { _ = try await a.prepareSend(for: w) }
+        check(d.presses.isEmpty, "legacy behavior stays blocked during generation")
+    }
+    do {
+        let (d, a, original, conversation) = codexFixture(); var w = original
+        w.binding = nil; d.windows[0].children.removeLast()
+        w.binding = try await a.openCodexConversation(w, knownConversations: [conversation])
+        check(w.binding?.stopControl == nil, "first idle auto-binding never invents a hidden stop locator")
+        let inserted = try await a.insert("new voice draft", for: w)
+        let preview = try await a.prepareSend(for: w)
+        check(preview.kind == .send && preview.text == inserted && d.presses.isEmpty, "verified idle Codex can preview first normal send without prior stop learning")
+        let outcome = try await a.confirmSend(preview, for: w)
+        check(d.presses == ["send"] && outcome.confirmed, "fresh observed stop transition confirms ordinary managed send once")
+    } catch { check(false, "first idle managed send: \(error)") }
+    do {
+        let (d, a, w, conversation) = codexFixture(); d.windows[0].children.removeLast()
+        let binding = try await a.openCodexConversation(w, knownConversations: [conversation])
+        check(binding.stopControl == w.binding?.stopControl, "reopening exact unchanged conversation retains previously learned absent stop")
+    } catch { check(false, "preserve prior controls: \(error)") }
+    for issue in ["stop", "cancel", "interrupt", "working", "continue", "opaqueRuntime", "approval", "unknownStop", "unknownSend", "duplicateSend", "missingIdentity"] {
+        let (d, a, original, _) = codexFixture(); var w = original
+        w.binding?.stopControl = nil; w.binding?.sendControl = nil
+        d.windows[0].children.removeLast()
+        switch issue {
+        case "unknownSend": d.windows[0].children[2].visible = nil
+        case "duplicateSend": var duplicate = d.windows[0].children[2]; duplicate.id = "second-send"; d.windows[0].children.append(duplicate)
+        case "missingIdentity": d.windows[0].url = nil
+        default:
+            let labels = ["stop": "Stop generating", "cancel": "Cancel", "interrupt": "Interrupt", "working": "Working…",
+                          "continue": "Continue", "opaqueRuntime": "More", "approval": "Allow once", "unknownStop": "Stop generating"]
+            d.windows[0].children.append(ToolAXNode(id: "runtime", role: "AXButton", identifier: issue == "opaqueRuntime" ? "running-task" : "runtime",
+                label: labels[issue], enabled: true, actions: ["AXPress"], visible: issue == "unknownStop" ? nil : true, contentScopeID: "main-content"))
+        }
+        await rejects("first idle managed send rejects \(issue)") { _ = try await a.prepareSend(for: w) }
+        check(d.presses.isEmpty && d.shortcuts.isEmpty, "unknown \(issue) state never submits")
+    }
+    do {
+        let (d, a, original, _) = codexFixture(); var w = original
+        w.binding?.stopControl = nil; w.binding?.sendControl = nil; d.windows[0].children.removeLast()
+        let preview = try await a.prepareSend(for: w)
+        d.windows[0].children[2].identifier = "replacement-send"
+        await rejects("fresh managed Send identity change invalidates confirmation") { _ = try await a.confirmSend(preview, for: w) }
+        check(d.presses.isEmpty, "changed fresh control requires another confirmation")
+        d.windows[0].children[2].identifier = "send"
+        d.windows[0].children.append(ToolAXNode(id: "live-stop", role: "AXButton", label: "Stop generating", enabled: true,
+            actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        addSteer(d)
+        let steer = try await a.prepareSend(for: w)
+        check(steer.kind == .steer, "explicit live Steer still wins with first-use managed controls")
+    } catch { check(false, "fresh control confirmation checks: \(error)") }
+    for label in ["Stop generating", "Cancel"] {
+        let (d, a, w, _) = codexFixture()
+        d.windows[0].children.append(ToolAXNode(id: "new-live-stop", role: "AXButton", identifier: "new-stop", label: label,
+            enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        await rejects("saved disabled stop cannot hide additional \(label)") { _ = try await a.prepareSend(for: w) }
+        check(d.presses.isEmpty, "additional runtime controls block managed send despite old idle locator")
+    }
+    do {
+        let (d, a, w, conversation) = codexFixture()
+        let duplicate = CodexConversation(id: "22222222-2222-4222-8222-222222222222", title: conversation.title, projectPath: conversation.projectPath)
+        _ = try await a.openCodexConversation(w, knownConversations: [conversation, duplicate])
+        check(d.openedURLs.count == 1, "exact current thread ID disambiguates same-title conversations")
+        d.windows[0].url = nil
+        d.windows[0].documentURL = "file:///tmp/project-alpha"
+        await rejects("lost live identity blocks insertion after binding") { _ = try await a.insert("draft", for: w) }
+        check(d.writes == 0, "lost current identity cannot inherit prior navigation verification")
+    } catch { check(false, "same-title exact identity: \(error)") }
+    do {
+        let (d, a, original, conversation) = codexFixture(); var w = original
+        d.windows[0].url = nil; d.windows[0].documentURL = "file:///tmp/project-alpha"
+        w.binding = try await a.openCodexConversation(w, knownConversations: [conversation])
+        _ = try await a.insert("draft", for: w)
+        check(d.writes == 1, "unique-title navigation authorizes same-session project evidence fallback")
+        let freshAdapter = ToolAdapter(driver: d)
+        await rejects("saved metadata does not remember runtime title uniqueness") { _ = try await freshAdapter.insert("other", for: w) }
+        check(d.writes == 1, "project-only writes need fresh catalog uniqueness after restart")
+    } catch { check(false, "runtime title fallback: \(error)") }
+    do {
+        let (d, a, w, _) = codexFixture()
+        d.windows[0].url = nil
+        await rejects("managed insertion requires fresh live identity") { _ = try await a.insert("draft", for: w) }
+        check(d.writes == 0, "no managed writes when current identity evidence disappears")
+    }
+    for phase in ["preflight", "authorization", "mutation", "success"] {
+        let (d, a, w) = fixture()
+        var attempts: [String] = []
+        if phase == "preflight" { d.writeWorks = false; d.windows[0].children[0].secure = true }
+        if phase == "authorization" { a.authorizeOperation = { throw ToolAdapterError("revoked") } }
+        if phase == "mutation" { d.writeThrows = true }
+        do { _ = try await a.insert("new draft", for: w, willWrite: { attempts.append($0) }) }
+        catch { check(phase != "success", "unexpected insertion callback failure") }
+        check(attempts == ((phase == "mutation" || phase == "success") ? ["existing\nnew draft"] : []), "write callback tracks only attempted mutation: \(phase)")
+    }
+    for kind in ["send", "steer"] {
+        for phase in ["preflight", "authorization", "mutation", "success"] {
+            do {
+                let (d, a, w, _) = codexFixture()
+                if kind == "steer" { d.setRunning(true); addSteer(d) }
+                let preview = try await a.prepareSend(for: w)
+                var attempts = 0
+                if phase == "preflight" { d.text = "changed" }
+                if phase == "authorization" { a.authorizeOperation = { throw ToolAdapterError("revoked") } }
+                if phase == "mutation" { d.pressThrows = true }
+                do { _ = try await a.confirmSend(preview, for: w, willSubmit: { attempts += 1 }) }
+                catch { check(phase != "success", "unexpected submission callback failure") }
+                check(attempts == ((phase == "mutation" || phase == "success") ? 1 : 0), "\(kind) callback tracks only attempted mutation: \(phase)")
+            } catch { check(false, "mutation callback fixture: \(error)") }
+        }
+    }
     print("Tool adapter checks: \(checks) assertions, \(failures) failures (fake AX only)")
     exit(failures == 0 ? 0 : 1)
 }
