@@ -19,6 +19,9 @@ See the repository's docs/NATIVE-SETUP.md. Installing this skill alone does not 
 Native 0.2.3 uses the Pro 2 physical diagram and explicit Codex/Claude/WorkBuddy default
 action presets. Workspace actions are independent; calibrated HID inputs remain shared.
 Existing profiles keep their global actions until the user edits or explicitly applies a preset.
+Native 0.2.5 adds nearby-remote discovery, explicit selection and bounded idle reconnection.
+Saved/discovered devices do not establish audio readiness; manual stops and capture-time loss
+require explicit reconnection. See NATIVE-SETUP for pairing and discovery limits.
 The user's native-app path requires no SayAll/MiRemote bridge; do not install one implicitly.
 Native presets do not prove physical input, focus, insertion, send or stop acceptance.
 A virtual microphone, software pointer and native CLI runtime adapter remain future work.

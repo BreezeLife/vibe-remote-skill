@@ -13,10 +13,36 @@ not observed in this development turn and they are not part of the native build.
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
 Observed on 2026-10-09: /Applications/Vibe Remote.app, 0.2.3 / build 6, matching the user's
-About screenshot and actual window. The current-user copy is absent. The 0.2.4 icon update
-is ready; the system Installer is awaiting administrator authorization. Hardware and tool
-capability acceptance remain separate.
+About screenshot and actual window. The current-user copy is absent. The 0.2.5 discovery
+update includes the enlarged icon and is ready in a system-only installer. The earlier
+0.2.4 Installer remains at administrator authorization; asked the user to complete or cancel
+that system dialog before continuing 0.2.5 installation. Hardware and tool acceptance remain separate.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.5 — find, choose and reconnect a remote
+
+- [x] Add a shared nearby-remote picker to dictation and connection settings.
+- [x] Discover ATVV/remote-specific candidates, merge by UUID and distinguish broadcast,
+  system-connected and remembered observations; unknown devices never become ready by selection.
+- [x] Connect only the selected remote; remember it locally and provide explicit scan/stop/forget.
+- [x] Retry unexpected idle disconnection of a verified remote up to three times (2/5/10 sec).
+  Manual stop/disconnect, capture-time loss, protocol failures and disabled Bluetooth remain stopped.
+- [x] Pass 62 core tests; 22 model scenarios / 159 assertions; 46 integration scenarios /
+  149 assertions; 42 Speech, 48 HID, 15 settings, 144 adapter assertions; 30 Python tests
+  and neutral config validation. Reconnect-during-capture regression observed before model fix.
+- [x] Independent code review found no blocker. Release build, plist, signature and diff checks passed.
+- [x] Render production picker empty/5 candidates/connecting/ready and both full pages at 740 pt
+  using fake services; no horizontal overflow, list remains bounded to three visible rows.
+- [x] Build and independently expand package: version/build, LocalSystem-only domain,
+  /Applications payload, canonical enlarged icon bytes and strict app signature match.
+- [ ] Finish system installation after the pending administrator dialog, then verify running version/icon.
+- [ ] Physically test discovery, deliberate selection, system pairing, idle reconnection and two voice holds.
+
+Package: ~/Downloads/VibeRemote-0.2.5-System-20261009/VibeRemote-0.2.5-arm64.pkg
+(3,077,318 bytes; 0.2.5/build 8; LocalSystem only; /Applications).
+SHA-256: 8f50e1fc1ea8f3279529a7833b8b2e582f0ded185dfce98733eb2f6a195b980f.
+App remains ad-hoc signed and package unsigned/unnotarized. No real scan, pairing, permissions,
+HID takeover or audio test was performed by the development checks. User settings and drafts preserved.
 
 ## Latest icon design proposal
 

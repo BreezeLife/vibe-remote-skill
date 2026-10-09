@@ -9,6 +9,8 @@ import Foundation
 import VibeRemoteCore
 
 final class BluetoothService: NSObject {
+    var onDiscovery: ((RemoteDiscoveryState) -> Void)?
+    private(set) var discovery: RemoteDiscoveryState
     var onStatus: ((String) -> Void)?
     var onReady: ((Bool) -> Void)?
     var onStream: ((Bool, Int) -> Void)?
@@ -23,6 +25,17 @@ final class BluetoothService: NSObject {
     // Bluetooth SIG: Human Interface Device = 0x1812 (0x180D is Heart Rate).
     private static let hidUUID = CBUUID(string: "1812")
     private static let savedPeripheralKey = "VibeRemote.verifiedATVVPeripheral"
+    private static let selectedPeripheralKey = "VibeRemote.selectedATVVPeripheral"
+    private static let autoReconnectKey = "VibeRemote.autoReconnectATVV"
+    private let defaults: UserDefaults
+    private var catalog = RemoteDiscoveryCatalog()
+    private var candidates: [UUID: CBPeripheral] = [:]
+    private var scanRequested = false
+    private var targetRemoteID: UUID?
+    private var reconnectPolicy = RemoteReconnectPolicy()
+    private var isReconnectAttempt = false
+    private var scanTimer: Timer?
+    private var reconnectTimer: Timer?
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -56,29 +69,146 @@ final class BluetoothService: NSObject {
     private var keepAliveTimer: Timer?
     private var streamWatchdog: Timer?
 
-    // Initializing the service never prompts for Bluetooth access. A user action
-    // calls start(), which creates the central manager on the main queue.
-    func start() {
+    // Loading a remembered selection never creates a central, prompts, or claims readiness.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let selected = defaults.string(forKey: Self.selectedPeripheralKey)
+            ?? defaults.string(forKey: Self.savedPeripheralKey)
+        discovery = RemoteDiscoveryState(
+            rememberedID: selected.flatMap(UUID.init(uuidString:)),
+            autoReconnectEnabled: defaults.object(forKey: Self.autoReconnectKey) == nil
+                ? true : defaults.bool(forKey: Self.autoReconnectKey))
+        super.init()
+    }
+
+    /// Explicitly reconnect the saved selection, or show candidates on first use.
+    func start() { beginDiscovery(reconnectRemembered: true) }
+
+    /// An explicit scan never auto-selects even a previously used remote.
+    func discover() { beginDiscovery(reconnectRemembered: false) }
+
+    private func beginDiscovery(reconnectRemembered: Bool) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { [weak self] in self?.start() }
+            DispatchQueue.main.async { [weak self] in
+                self?.beginDiscovery(reconnectRemembered: reconnectRemembered)
+            }
             return
         }
         guard retiringPeripheral == nil else {
             onStatus?("正在结束上一次连接，请稍后重试")
             return
         }
-        guard peripheral == nil, central?.isScanning != true else { return }
-        connectionRequested = true
+        guard peripheral == nil else { return }
+        stopScanning()
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        reconnectPolicy.suspend()
+        isReconnectAttempt = false
+        catalog.clear()
+        candidates.removeAll()
+        targetRemoteID = reconnectRemembered ? discovery.rememberedID : nil
+        connectionRequested = targetRemoteID != nil
+        scanRequested = true
+        discovery.connectingID = targetRemoteID
+        publishDiscovery()
         onStatus?("等待蓝牙就绪…")
         if let central {
-            if central.state == .poweredOn {
-                findRemote(using: central)
-            } else {
-                handleCentralState(central)
-            }
+            handleCentralState(central)
         } else {
             central = CBCentralManager(delegate: self, queue: .main)
         }
+    }
+
+    func stopDiscovery() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.stopDiscovery() }
+            return
+        }
+        guard peripheral == nil else { return }
+        stopScanning()
+        scanRequested = false
+        connectionRequested = false
+        targetRemoteID = nil
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        reconnectPolicy.suspend()
+        isReconnectAttempt = false
+        discovery.connectingID = nil
+        publishDiscovery()
+        onStatus?("搜索已停止；可以选择已发现的遥控器连接")
+    }
+
+    func selectRemote(_ id: UUID) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.selectRemote(id) }
+            return
+        }
+        guard peripheral == nil, retiringPeripheral == nil,
+              let central, central.state == .poweredOn, let candidate = candidates[id] else { return }
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        reconnectPolicy.suspend()
+        isReconnectAttempt = false
+        discovery.rememberedID = id
+        defaults.set(id.uuidString, forKey: Self.selectedPeripheralKey)
+        targetRemoteID = id
+        connectionRequested = true
+        connect(candidate, using: central)
+    }
+
+    func setAutoReconnect(_ enabled: Bool) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.setAutoReconnect(enabled) }
+            return
+        }
+        discovery.autoReconnectEnabled = enabled
+        defaults.set(enabled, forKey: Self.autoReconnectKey)
+        if !enabled {
+            reconnectPolicy.suspend()
+            if reconnectTimer != nil || isReconnectAttempt {
+                resetConnection(status: "已关闭自动重连；点击连接可重试", cancel: true)
+            }
+        } else if ready {
+            reconnectPolicy.verifiedConnection()
+        }
+        publishDiscovery()
+    }
+
+    func forgetRemote() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.forgetRemote() }
+            return
+        }
+        guard peripheral == nil, retiringPeripheral == nil else { return }
+        stopDiscovery()
+        discovery.rememberedID = nil
+        defaults.removeObject(forKey: Self.selectedPeripheralKey)
+        defaults.removeObject(forKey: Self.savedPeripheralKey)
+        catalog.clear()
+        candidates.removeAll()
+        publishDiscovery()
+        onStatus?("已忘记所选遥控器；重新搜索后选择一只")
+    }
+
+    private func publishDiscovery() {
+        discovery.devices = catalog.devices
+        onDiscovery?(discovery)
+    }
+
+    private func record(_ candidate: CBPeripheral, source: RemoteDiscoverySource,
+                        name: String? = nil, rssi: Int? = nil, audioService: Bool = false) {
+        candidates[candidate.identifier] = candidate
+        catalog.observe(NearbyRemote(id: candidate.identifier,
+            name: name ?? candidate.name ?? "未命名语音遥控器", source: source,
+            rssi: rssi, advertisesAudioService: audioService))
+        publishDiscovery()
+    }
+
+    private func stopScanning() {
+        central?.stopScan()
+        scanTimer?.invalidate()
+        scanTimer = nil
+        discovery.isScanning = false
     }
 
     func disconnect() {
@@ -101,6 +231,7 @@ final class BluetoothService: NSObject {
         }
         guard ready, opening || streaming, manualStopGate.allowsStart else { return }
         pendingStopReason = reason
+        reconnectPolicy.suspend()
         manualStopGate.requestStop()
         guard sendCloseCommand() else { return }
         finishAudio()
@@ -114,41 +245,95 @@ final class BluetoothService: NSObject {
     }
 
     private func findRemote(using central: CBCentralManager) {
-        guard connectionRequested, peripheral == nil, central.state == .poweredOn else { return }
-        let connectedATVV = central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID])
-        let connectedHID = central.retrieveConnectedPeripherals(withServices: [Self.hidUUID])
-            .filter { Self.isXiaomiName($0.name) }
-        var known: [CBPeripheral] = []
-        if let value = UserDefaults.standard.string(forKey: Self.savedPeripheralKey),
-           let identifier = UUID(uuidString: value) {
-            known = central.retrievePeripherals(withIdentifiers: [identifier])
+        guard scanRequested, peripheral == nil, central.state == .poweredOn else { return }
+        stopScanning()
+        for candidate in central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) {
+            record(candidate, source: .systemConnected, audioService: true)
         }
-        if let candidate = (connectedATVV + connectedHID + known).first {
+        for candidate in central.retrieveConnectedPeripherals(withServices: [Self.hidUUID])
+            where RemoteDiscoveryCatalog.isCandidate(name: candidate.name, advertisesAudioService: false,
+                                                      advertisesHIDService: true) {
+            record(candidate, source: .systemConnected)
+        }
+        if let identifier = discovery.rememberedID {
+            for candidate in central.retrievePeripherals(withIdentifiers: [identifier]) {
+                // A cached CBPeripheral is not proof that the remote is nearby or connected.
+                record(candidate, source: .remembered)
+            }
+        }
+        if connectionRequested, let targetRemoteID, let candidate = candidates[targetRemoteID] {
             connect(candidate, using: central)
             return
         }
-        // A nil scan filter is needed for Xiaomi firmware that omits its ATVV
-        // service from advertisements. didDiscover selects only ATVV/Xiaomi.
-        onStatus?("搜索小米遥控器；请在系统蓝牙设置中配对或唤醒遥控器…")
+        // Xiaomi firmware may omit ATVV from advertisements. Filter remote-specific
+        // names after scanning, but never connect the first arbitrary matching device.
+        onStatus?(connectionRequested ? "正在寻找已选遥控器；请按键唤醒…" : "正在搜索附近遥控器；发现后请选择一只连接")
+        discovery.isScanning = true
+        publishDiscovery()
         central.scanForPeripherals(withServices: nil,
                                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        armConnectionTimeout(20, message: "未找到遥控器；请检查蓝牙配对后重新连接")
-    }
-
-    private static func isXiaomiName(_ name: String?) -> Bool {
-        guard let name else { return false }
-        let lower = name.lowercased()
-        return lower.contains("xiaomi") || lower.contains("小米") || lower == "mi rc"
+        scanTimer = timer(after: 20) { [weak self] in
+            guard let self else { return }
+            let retry = self.isReconnectAttempt
+            self.stopScanning()
+            self.scanRequested = false
+            self.connectionRequested = false
+            self.discovery.connectingID = nil
+            self.publishDiscovery()
+            self.onStatus?(self.catalog.devices.isEmpty
+                ? "未发现遥控器；请唤醒或进入配对模式后重新搜索"
+                : "搜索完成；请选择遥控器。仅有历史记录的设备可能尚未唤醒")
+            if retry { self.scheduleReconnect(wasCapturing: false) }
+        }
     }
 
     private func connect(_ candidate: CBPeripheral, using central: CBCentralManager) {
-        guard connectionRequested, peripheral == nil else { return }
-        central.stopScan()
+        guard connectionRequested, candidate.identifier == targetRemoteID,
+              peripheral == nil, retiringPeripheral == nil else { return }
+        stopScanning()
+        scanRequested = false
         peripheral = candidate
         candidate.delegate = self
-        onStatus?("正在连接 \(candidate.name ?? "ATVV 遥控器")…")
-        armConnectionTimeout(15, message: "遥控器连接超时，请唤醒遥控器后重新连接")
+        discovery.connectingID = candidate.identifier
+        publishDiscovery()
+        onStatus?("正在连接 \(candidate.name ?? "语音遥控器")…")
+        connectionTimer?.invalidate()
+        connectionTimer = timer(after: 15) { [weak self] in
+            guard let self else { return }
+            let retry = self.isReconnectAttempt
+            self.resetConnection(status: "遥控器连接超时；请唤醒设备，必要时在系统蓝牙设置中配对",
+                                 cancel: true, retainReconnectPolicy: retry)
+            if retry { self.scheduleReconnect(wasCapturing: false) }
+        }
         central.connect(candidate, options: nil)
+    }
+
+    private func scheduleReconnect(wasCapturing: Bool) {
+        guard let id = discovery.rememberedID,
+              let delay = reconnectPolicy.nextDelay(enabled: discovery.autoReconnectEnabled,
+                                                     wasCapturing: wasCapturing) else {
+            isReconnectAttempt = false
+            discovery.connectingID = nil
+            publishDiscovery()
+            return
+        }
+        isReconnectAttempt = true
+        discovery.connectingID = id
+        publishDiscovery()
+        onStatus?("连接中断；\(Int(delay)) 秒后重连已选遥控器。点击断开可取消")
+        reconnectTimer = timer(after: delay) { [weak self] in
+            guard let self else { return }
+            self.reconnectTimer = nil
+            guard self.retiringPeripheral == nil, self.peripheral == nil,
+                  let central = self.central, central.state == .poweredOn else {
+                self.resetConnection(status: "暂时无法重连；请检查蓝牙状态后点击连接", cancel: true)
+                return
+            }
+            self.targetRemoteID = id
+            self.connectionRequested = true
+            self.scanRequested = true
+            self.findRemote(using: central)
+        }
     }
 
     private func armConnectionTimeout(_ interval: TimeInterval, message: String) {
@@ -216,9 +401,14 @@ final class BluetoothService: NSObject {
             connectionTimer?.invalidate()
             connectionTimer = nil
             ready = true
+            isReconnectAttempt = false
+            reconnectPolicy.verifiedConnection()
+            discovery.connectingID = nil
+            discovery.connectedID = peripheral?.identifier
+            publishDiscovery()
             if let peripheral {
-                UserDefaults.standard.set(peripheral.identifier.uuidString,
-                                          forKey: Self.savedPeripheralKey)
+                defaults.set(peripheral.identifier.uuidString,
+                             forKey: Self.savedPeripheralKey)
             }
             onStatus?("遥控器已就绪（\(codec.sampleRate) Hz）；按住语音键说话")
             onReady?(true)
@@ -376,9 +566,18 @@ final class BluetoothService: NSObject {
         resetConnection(status: message, cancel: true)
     }
 
-    private func resetConnection(status: String, cancel: Bool) {
+    private func resetConnection(status: String, cancel: Bool, retainReconnectPolicy: Bool = false) {
         connectionRequested = false
-        central?.stopScan()
+        scanRequested = false
+        targetRemoteID = nil
+        isReconnectAttempt = false
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        if !retainReconnectPolicy { reconnectPolicy.suspend() }
+        stopScanning()
+        discovery.connectingID = nil
+        discovery.connectedID = nil
+        publishDiscovery()
         connectionTimer?.invalidate()
         connectionTimer = nil
         ready = false
@@ -408,11 +607,11 @@ final class BluetoothService: NSObject {
     private func handleCentralState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            if connectionRequested, peripheral == nil, !central.isScanning {
+            if scanRequested, peripheral == nil, !central.isScanning {
                 findRemote(using: central)
             }
         case .unknown:
-            if peripheral != nil || ready || streaming || opening {
+            if peripheral != nil || ready || streaming || opening || discovery.isScanning || reconnectTimer != nil {
                 resetConnection(status: "蓝牙状态未知；请检查系统设置后重新连接", cancel: true)
             } else {
                 onStatus?("等待蓝牙状态…")
@@ -438,12 +637,17 @@ extension BluetoothService: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDiscover candidate: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        guard connectionRequested, peripheral == nil else { return }
+        guard discovery.isScanning, peripheral == nil else { return }
         let advertised = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
             + (advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [])
         let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? candidate.name
-        guard advertised.contains(Self.serviceUUID) || Self.isXiaomiName(name) else { return }
-        connect(candidate, using: central)
+        let audioService = advertised.contains(Self.serviceUUID)
+        guard RemoteDiscoveryCatalog.isCandidate(name: name, advertisesAudioService: audioService,
+                                                  advertisesHIDService: advertised.contains(Self.hidUUID)) else { return }
+        record(candidate, source: .advertisement, name: name, rssi: RSSI.intValue, audioService: audioService)
+        if connectionRequested, candidate.identifier == targetRemoteID {
+            connect(candidate, using: central)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect candidate: CBPeripheral) {
@@ -463,7 +667,10 @@ extension BluetoothService: CBCentralManagerDelegate {
             return
         }
         guard candidate === peripheral else { return }
-        resetConnection(status: "连接失败：\(error?.localizedDescription ?? "请检查遥控器")", cancel: false)
+        let retry = isReconnectAttempt
+        resetConnection(status: "连接失败：\(error?.localizedDescription ?? "请唤醒遥控器，必要时到系统蓝牙设置中配对")",
+                        cancel: false, retainReconnectPolicy: retry)
+        if retry { scheduleReconnect(wasCapturing: false) }
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral candidate: CBPeripheral,
@@ -473,7 +680,13 @@ extension BluetoothService: CBCentralManagerDelegate {
             return
         }
         guard candidate === peripheral else { return }
-        resetConnection(status: "遥控器已断开；点击连接可重新连接", cancel: false)
+        let wasCapturing = opening || streaming || !manualStopGate.allowsStart
+        let retry = (ready || isReconnectAttempt) && !wasCapturing
+        resetConnection(status: wasCapturing
+                        ? "收音时连接中断；请松开语音键，再点击连接"
+                        : "遥控器已断开；点击连接可重新连接",
+                        cancel: false, retainReconnectPolicy: retry)
+        if retry { scheduleReconnect(wasCapturing: wasCapturing) }
     }
 }
 

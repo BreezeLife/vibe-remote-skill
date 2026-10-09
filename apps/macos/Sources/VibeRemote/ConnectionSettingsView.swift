@@ -9,15 +9,11 @@ struct ConnectionSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            SettingsHeading(title: "连接与权限", detail: "语音和按键是独立连接。只有点击对应按钮时才请求权限或接管设备。")
+            SettingsHeading(title: "连接与权限", detail: "先扫描并选择语音遥控器；输入监控与编程工具权限单独启用。")
             GroupBox("语音连接") {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Label(voice.connectionStatus, systemImage: voice.ready ? "checkmark.circle" : "antenna.radiowaves.left.and.right")
-                        Spacer()
-                        Button("连接遥控器", action: voice.connect).disabled(voice.isBusy)
-                        Button("断开", action: voice.disconnect)
-                    }
+                    RemoteConnectionView(model: voice, editsLocked: model.operationInProgress)
+                    Divider()
                     HStack {
                         Text(voice.recognitionEnabled ? "语音识别已授权" : "语音识别尚未授权")
                         Spacer()

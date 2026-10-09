@@ -7,6 +7,8 @@ import VibeRemoteCore
 // side effects are fake-driver calls and files inside a temporary fixture directory.
 // No Bluetooth/IOKit/AX driver, recognizer, TCC prompt, pasteboard or GUI is used.
 private final class IntegrationBluetooth: BluetoothServicing {
+    var discovery = RemoteDiscoveryState()
+    var onDiscovery: ((RemoteDiscoveryState) -> Void)?
     var onStatus: ((String) -> Void)?
     var onReady: ((Bool) -> Void)?
     var onStream: ((Bool, Int) -> Void)?
@@ -14,6 +16,11 @@ private final class IntegrationBluetooth: BluetoothServicing {
     var onLevel: ((Double) -> Void)?
     var stops = 0
     func start() {}
+    func discover() {}
+    func stopDiscovery() {}
+    func selectRemote(_ id: UUID) {}
+    func setAutoReconnect(_ enabled: Bool) { discovery.autoReconnectEnabled = enabled; onDiscovery?(discovery) }
+    func forgetRemote() { discovery.rememberedID = nil; onDiscovery?(discovery) }
     func disconnect() { onReady?(false) }
     func stopCapture() { stops += 1; onStream?(false, 16_000) }
     func stream(_ active: Bool) { onStream?(active, 16_000) }

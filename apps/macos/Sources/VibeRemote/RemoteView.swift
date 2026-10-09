@@ -20,14 +20,8 @@ struct RemoteView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: model.ready ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right")
-                            .foregroundStyle(model.ready ? Color.green : Color.secondary)
-                        Text(model.connectionStatus).font(.callout)
-                        Spacer()
-                        Button("连接遥控器", action: model.connect).disabled(model.isBusy || editsLocked)
-                        Button("断开", action: model.disconnect)
-                    }
+                    RemoteConnectionView(model: model, editsLocked: editsLocked)
+                    Divider()
                     HStack(spacing: 12) {
                         Image(systemName: "waveform")
                         Text(model.captureLabel).frame(width: 105, alignment: .leading)

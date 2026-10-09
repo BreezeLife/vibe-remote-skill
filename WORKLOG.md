@@ -516,3 +516,36 @@ in macOS Installer, selected its all-users system destination, and started insta
 The system authorization step requires the user's Touch ID/admin credential; requested
 that completion in the system dialog without sending credentials in chat. At this point
 the old installed bundle/settings are preserved; final installation verification is pending.
+
+## 2026-10-09 — nearby remote selection and automatic idle reconnect
+
+User requested finding nearby remotes, choosing one and connecting automatically after selection.
+Replaced first-matching-device connection with explicit discovery and a shared picker in dictation
+and connection settings. Candidates merge by UUID, exclude generic Xiaomi devices, show source
+and optional signal, and retain a local chosen UUID separately from verified ATVV readiness.
+A fresh launch does not scan or request permission; user can reconnect the remembered selection.
+Idle unexpected disconnection after negotiation retries only that selection at 2/5/10 seconds.
+Explicit disconnect, manual capture stop, capture-time loss, protocol errors and Bluetooth loss
+suspend retries. Existing drafts, HID safeguards and send guards are unchanged.
+
+Added pure discovery/reconnect tests, real-model fake-service checks and isolated UserDefaults
+initialization/forget checks without creating a Bluetooth central. Core: 62 tests; model: 22
+scenarios/159 assertions; integration: 46 scenarios/149 assertions; Speech: 42; HID: 48; settings:
+15; adapter: 144; Python: 30, all passed, plus neutral config validation. The new busy-connect
+regression failed before its guard was implemented. Independent read-only review found no blocker.
+Production NSHostingView fixture renders cover empty, five candidates, connecting, ready and both
+740-point pages; inspected bounded list and no horizontal overflow. These are simulated states,
+not evidence of real discovery, pairing, signal, audio or permission availability.
+
+Bumped to 0.2.5/build 8, retaining the canonical enlarged remote + Vibe icon. Release and package
+builds passed. Independently expanded the final package and checked LocalSystem-only domain,
+/Applications destination, version/build, source icon equality and strict app signature.
+Package: ~/Downloads/VibeRemote-0.2.5-System-20261009/VibeRemote-0.2.5-arm64.pkg,
+3,077,318 bytes; SHA-256 8f50e1fc1ea8f3279529a7833b8b2e582f0ded185dfce98733eb2f6a195b980f.
+The app uses ad-hoc signing; package remains unsigned/unnotarized.
+
+Read-only installation check still reports system 0.2.3 and no ~/Applications copy. The earlier
+0.2.4 Installer UI remains at Preparing for installation, awaiting the user's system authorization.
+Asked the user to complete or cancel that dialog before proceeding with 0.2.5; the computer-use
+tool cannot operate the protected authentication window. No installed app, real configuration,
+permissions, HID ownership or drafts were changed. STATUS.md and .project-pulse/ left untouched.

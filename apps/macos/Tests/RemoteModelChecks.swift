@@ -1,8 +1,12 @@
 import Foundation
+import VibeRemoteCore
 
-// Every service is a fake: these model checks never create a Bluetooth central,
-// instantiate a speech recognizer, request TCC access or use the pasteboard.
+// Model actions use fake services. Real BluetoothService initialization checks
+// use isolated preferences without starting a central, scanning, or connecting.
+// These checks never instantiate a recognizer, request TCC access or use the pasteboard.
 private final class FakeBluetooth: BluetoothServicing {
+    var discovery = RemoteDiscoveryState()
+    var onDiscovery: ((RemoteDiscoveryState) -> Void)?
     var onStatus: ((String) -> Void)?
     var onReady: ((Bool) -> Void)?
     var onStream: ((Bool, Int) -> Void)?
@@ -11,8 +15,19 @@ private final class FakeBluetooth: BluetoothServicing {
     private(set) var starts = 0
     private(set) var disconnects = 0
     private(set) var captureStops = 0
+    private(set) var discoveries = 0
+    private(set) var discoveryStops = 0
+    private(set) var selections: [UUID] = []
+    private(set) var reconnectSettings: [Bool] = []
+    private(set) var forgets = 0
 
     func start() { starts += 1 }
+    func discover() { discoveries += 1 }
+    func stopDiscovery() { discoveryStops += 1 }
+    func selectRemote(_ id: UUID) { selections.append(id) }
+    func setAutoReconnect(_ enabled: Bool) { reconnectSettings.append(enabled) }
+    func forgetRemote() { forgets += 1 }
+    func publishDiscovery(_ state: RemoteDiscoveryState) { discovery = state; onDiscovery?(state) }
     func disconnect() { disconnects += 1 }
     func stopCapture() {
         captureStops += 1
@@ -497,7 +512,137 @@ private func captureAndFinalizationLockWorkspace() {
     check(model.draft.text == "first workspace utterance", "result remains owned by capture target")
 }
 
+private func captureAndFinalizationBlockReconnectRequests() {
+    let (model, bluetooth, speech) = fixture()
+    model.connect()
+    check(bluetooth.starts == 1, "idle connection is explicit and forwarded once")
+    bluetooth.stream(true)
+    model.connect()
+    check(bluetooth.starts == 1, "active capture cannot reconnect the transport")
+    speech.text("owned utterance")
+    bluetooth.stream(false)
+    model.connect()
+    check(bluetooth.starts == 1, "recognition finalization cannot reconnect the transport")
+    speech.complete()
+    model.connect()
+    check(bluetooth.starts == 2, "settled recognition permits an explicit reconnect")
+    check(model.draft.text == "prior draft\nowned utterance", "connection requests preserve the owned draft")
+}
+
+private func discoveryStateIsObservedWithoutInventingReadiness() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: true)
+    let id = UUID()
+    bluetooth.discovery = RemoteDiscoveryState(
+        devices: [NearbyRemote(id: id, name: "Remembered fixture remote", source: .remembered)], rememberedID: id)
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech)
+    check(model.discovery == bluetooth.discovery, "initial remembered selection is copied from service")
+    check(!model.ready && !model.isReceivingAudio && !model.discovery.isScanning,
+          "remembered selection never invents readiness, capture or a running scan")
+    check(bluetooth.starts == 0 && bluetooth.discoveries == 0 && bluetooth.selections.isEmpty,
+          "loading a discovery snapshot never starts Bluetooth work")
+    let scanning = RemoteDiscoveryState(
+        devices: [NearbyRemote(id: id, name: "Xiaomi Remote", source: .advertisement, rssi: -55)],
+        isScanning: true, rememberedID: id, autoReconnectEnabled: false)
+    bluetooth.publishDiscovery(scanning)
+    check(model.discovery == scanning, "new observations and preference changes reach the published snapshot")
+    check(!model.ready, "an advertisement does not substitute for a verified audio connection")
+    let connected = RemoteDiscoveryState(devices: scanning.devices, connectedID: id, rememberedID: id)
+    bluetooth.publishDiscovery(connected)
+    check(model.discovery == connected && !model.ready, "discovery metadata does not override the readiness callback")
+    bluetooth.onReady?(true)
+    check(model.ready, "only the explicit transport readiness callback marks the model ready")
+}
+
+private func idleDiscoveryActionsForwardWithoutChangingDrafts() {
+    let (model, bluetooth, _) = fixture()
+    let id = UUID()
+    model.discoverRemotes()
+    model.stopDiscovery()
+    model.selectRemote(id)
+    model.setAutoReconnect(false)
+    model.forgetRemote()
+    check(bluetooth.discoveries == 1 && bluetooth.discoveryStops == 1,
+          "start and stop discovery forward to the service once")
+    check(bluetooth.selections == [id], "only the chosen remote identifier is forwarded")
+    check(bluetooth.reconnectSettings == [false] && bluetooth.forgets == 1,
+          "explicit reconnect preference and forget actions forward once")
+    check(model.draft.text == "prior draft", "discovery actions preserve the editable draft")
+    check(bluetooth.starts == 0 && bluetooth.disconnects == 0 && bluetooth.captureStops == 0,
+          "discovery actions do not invent connect, disconnect or stop-capture requests")
+}
+
+private func captureAndFinalizationGuardRemoteSelectionAndDiscovery() {
+    let (model, bluetooth, speech) = fixture()
+    let id = UUID()
+    func attemptTargetChanges() {
+        model.discoverRemotes(); model.selectRemote(id); model.forgetRemote()
+    }
+    bluetooth.stream(true)
+    attemptTargetChanges()
+    check(bluetooth.discoveries == 0 && bluetooth.selections.isEmpty && bluetooth.forgets == 0,
+          "active capture blocks scan, target changes and forgetting")
+    model.stopDiscovery(); model.setAutoReconnect(false)
+    check(bluetooth.discoveryStops == 1 && bluetooth.reconnectSettings == [false],
+          "stopping discovery and disabling automatic reconnect remain available while busy")
+    speech.text("owned utterance")
+    bluetooth.stream(false)
+    attemptTargetChanges()
+    check(bluetooth.discoveries == 0 && bluetooth.selections.isEmpty && bluetooth.forgets == 0,
+          "pending recognition finalization still protects the selected remote")
+    speech.complete()
+    attemptTargetChanges()
+    check(bluetooth.discoveries == 1 && bluetooth.selections == [id] && bluetooth.forgets == 1,
+          "settled recognition permits explicit discovery and selection again")
+    check(model.draft.text == "prior draft\nowned utterance", "blocked target changes retain the completed draft")
+}
+
+private func realServiceRestoresOnlyPreferencesAndForgetsOnlyRemoteKeys() {
+    let suite = "VibeRemote-ServiceChecks-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: suite) else {
+        check(false, "isolated preference suite can be opened"); return
+    }
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let selected = UUID(), legacy = UUID()
+    defaults.set(legacy.uuidString, forKey: "VibeRemote.verifiedATVVPeripheral")
+    defaults.set("preserve unrelated preference", forKey: "fixture.other")
+    let legacyService = BluetoothService(defaults: defaults)
+    check(legacyService.discovery.rememberedID == legacy, "legacy verified selection is available as a remembered choice")
+    check(legacyService.discovery.devices.isEmpty && !legacyService.discovery.isScanning &&
+          legacyService.discovery.connectingID == nil && legacyService.discovery.connectedID == nil,
+          "restoring a saved identifier neither scans nor claims discovery or connection")
+    check(legacyService.discovery.autoReconnectEnabled, "a missing reconnect preference defaults to enabled")
+    defaults.set(selected.uuidString, forKey: "VibeRemote.selectedATVVPeripheral")
+    defaults.set(false, forKey: "VibeRemote.autoReconnectATVV")
+    let service = BluetoothService(defaults: defaults)
+    let model = RemoteModel(bluetooth: service, speech: FakeSpeech(authorized: false))
+    check(model.discovery.rememberedID == selected && !model.discovery.autoReconnectEnabled,
+          "explicit selection wins over legacy selection and stored reconnect preference is restored")
+    check(!model.ready && !model.isReceivingAudio && !model.discovery.isScanning,
+          "real service initialization leaves the model disconnected and idle")
+    model.setAutoReconnect(true)
+    check(defaults.bool(forKey: "VibeRemote.autoReconnectATVV") && model.discovery.autoReconnectEnabled,
+          "reconnect preference changes persist and publish synchronously")
+    check(BluetoothService(defaults: defaults).discovery.autoReconnectEnabled,
+          "a fresh service reloads the persisted reconnect setting")
+    model.forgetRemote()
+    check(model.discovery.rememberedID == nil && model.discovery.devices.isEmpty,
+          "forgetting publishes removal of the remembered choice")
+    check(defaults.object(forKey: "VibeRemote.selectedATVVPeripheral") == nil &&
+          defaults.object(forKey: "VibeRemote.verifiedATVVPeripheral") == nil,
+          "forget clears both selected and legacy remote identifiers")
+    check(defaults.string(forKey: "fixture.other") == "preserve unrelated preference" &&
+          defaults.bool(forKey: "VibeRemote.autoReconnectATVV"),
+          "forget leaves unrelated preferences and automatic reconnect preference intact")
+    check(!model.ready && !model.discovery.isScanning && model.discovery.connectedID == nil,
+          "forget never makes a remembered peripheral ready or starts hardware activity")
+}
+
 private let cases: [(String, () -> Void)] = [
+    ("discovery state and readiness separation", discoveryStateIsObservedWithoutInventingReadiness),
+    ("explicit discovery action forwarding", idleDiscoveryActionsForwardWithoutChangingDrafts),
+    ("discovery and selection capture guards", captureAndFinalizationGuardRemoteSelectionAndDiscovery),
+    ("real service isolated preference restoration", realServiceRestoresOnlyPreferencesAndForgetsOnlyRemoteKeys),
+    ("reconnect capture guard", captureAndFinalizationBlockReconnectRequests),
     ("workspace draft ownership", workspaceDraftsAreIsolated),
     ("workspace capture lock", captureAndFinalizationLockWorkspace),
     ("no authorization retains audio transport", noAuthorizationKeepsTransportAndSignal),

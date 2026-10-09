@@ -160,3 +160,19 @@ the user's 2026-10-08 system Applications requirement. Other packaging safeguard
   as AppIcon-pro2-vibe-full.png and keep all generation prompts.
 - Verify the selected PNG, ICNS sizes, package and installed resource identity, then
   observe the running About window; a generated preview alone is not an app update.
+
+## 2026-10-09 — nearby remote selection and bounded reconnect
+
+- Explicit scans list candidate remotes and never auto-select the first match. A selected
+  local CoreBluetooth UUID is separate from a verified ATVV handshake and never proves proximity.
+- Merge advertisement, system-connected and remembered observations by UUID, label sources,
+  and filter generic Xiaomi devices unless they advertise ATVV. RSSI is not a distance.
+- Reconnect only the remembered selection. App initialization never creates the central
+  manager or requests permission; after relaunch the user starts connection explicitly.
+- Following a verified idle connection, unexpected loss permits at most three retries
+  (2/5/10 seconds). Explicit disconnect, manual capture stop, capture-time loss, protocol
+  failure and unavailable Bluetooth suspend retries. Preserve the manual-stop gate.
+- Selection and the auto-reconnect toggle live in UserDefaults, not exported project settings.
+  Forget removes the app preference, not system pairing, HID calibration, workspaces or drafts.
+- CoreBluetooth cannot stand in for system pairing confirmation; show wake/pair guidance.
+  Discovery and ATVV reconnect do not seize HID or enable mapped actions.

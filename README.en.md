@@ -26,6 +26,10 @@ use, install the `.pkg`: version 0.2.2 onward uses administrator authorization a
 only to `/Applications/Vibe Remote.app`. Run one copy at a time, either the development
 build or the installed app. See the native setup guide below for installation commands.
 
+Version 0.2.5 lists nearby remote candidates for explicit selection, remembers the chosen device,
+and retries unexpected idle disconnects up to three times. Manual stops and capture-time
+disconnects require a fresh user connection action.
+
 On-device recognition is required by default. An explicit opt-in allows Apple's
 speech service when local recognition is unavailable. The app does not persist audio
 or transcript history. Copy any text you need before quitting.

@@ -4,6 +4,7 @@ import VibeRemoteCore
 
 /// All services deliver callbacks on the main queue. No transcript persistence.
 final class RemoteModel: ObservableObject {
+    @Published private(set) var discovery: RemoteDiscoveryState
     @Published private(set) var connectionStatus = "尚未连接遥控器"
     @Published private(set) var ready = false
     @Published private(set) var recognitionEnabled = false
@@ -30,7 +31,9 @@ final class RemoteModel: ObservableObject {
          speech: SpeechServicing = SpeechService()) {
         self.bluetooth = bluetooth
         self.speech = speech
+        discovery = bluetooth.discovery
         recognitionEnabled = speech.isAuthorized
+        bluetooth.onDiscovery = { [weak self] state in self?.discovery = state }
         bluetooth.onStatus = { [weak self] status in self?.connectionStatus = status }
         bluetooth.onReady = { [weak self] ready in self?.ready = ready }
         bluetooth.onLevel = { [weak self] level in self?.level = level }
@@ -82,7 +85,24 @@ final class RemoteModel: ObservableObject {
         }
     }
 
-    func connect() { bluetooth.start() }
+    func connect() {
+        guard !isBusy else { return }
+        bluetooth.start()
+    }
+    func discoverRemotes() {
+        guard !isBusy else { return }
+        bluetooth.discover()
+    }
+    func stopDiscovery() { bluetooth.stopDiscovery() }
+    func selectRemote(_ id: UUID) {
+        guard !isBusy else { return }
+        bluetooth.selectRemote(id)
+    }
+    func setAutoReconnect(_ enabled: Bool) { bluetooth.setAutoReconnect(enabled) }
+    func forgetRemote() {
+        guard !isBusy else { return }
+        bluetooth.forgetRemote()
+    }
 
     func enableRecognition() {
         guard !requestingAuthorization, !isBusy else { return }

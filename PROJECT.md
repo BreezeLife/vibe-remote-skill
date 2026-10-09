@@ -24,7 +24,10 @@ live app metadata. A preset or build does not establish physical or tool accepta
 Version 0.2.3 matches the Pro 2 physical layout and supplies Codex, Claude and WorkBuddy
 presets. Workspace actions are independent overrides; calibrated HID remains shared.
 Legacy profiles retain their global actions until explicitly edited or given a preset.
-No audio or transcripts are persisted. Doubao/Typeless virtual microphone remains future work.
+Version 0.2.5 adds explicit nearby-remote selection and bounded idle reconnection. Discovery
+observations and saved identifiers never establish ATVV readiness; manual/capture stops
+require an explicit connection action. No audio or transcripts are persisted.
+Doubao/Typeless virtual microphone remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
 Its planner returns semantic actions and never injects GUI keys. The exact-session
