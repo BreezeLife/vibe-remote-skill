@@ -6,7 +6,13 @@ wordmark. The hardware silhouette, direction ring and button layout follow that 
 mint lettering and a microphone highlight identify this independent voice-control app.
 No Xiaomi/MI wordmarks are included. The supplied reference photo is not bundled.
 
-`AppIcon.png` is the unmodified final generated source with real transparency.
+On 2026-10-09, the enlarged remote + Vibe design was promoted from
+`Proposals/AppIcon-pro2-vibe-closeup.png` to the canonical `AppIcon.png` for 0.2.4.
+Its full prompt and reference provenance remain in `Proposals/README.md`.
+The 0.2.2–0.2.3 full-remote design is retained as `AppIcon-pro2-vibe-full.png`;
+the historical prompts below describe that earlier design.
+
+`AppIcon.png` is the unmodified close-up generated source with real transparency.
 `../AppIcon.icns` contains ten standard 16–1024 pixel representations. Rebuild it with
 `bash scripts/build_macos_icon.sh` (sips/iconutil resizing and format conversion only).
 Normal app builds consume the checked-in ICNS and require no image-generation service.

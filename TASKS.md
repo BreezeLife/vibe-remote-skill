@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-08 (Asia/Shanghai).
+Updated: 2026-10-09 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -12,9 +12,10 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Installed and opened on 2026-10-08: /Applications/Vibe Remote.app, 0.2.2 / build 5.
-The ~/Applications copy is absent. The actual app window displayed version 0.2.2; its icon
-matches the final Pro 2 + Vibe asset. Hardware and tool capability acceptance remain separate.
+Observed on 2026-10-09: /Applications/Vibe Remote.app, 0.2.3 / build 6, matching the user's
+About screenshot and actual window. The current-user copy is absent. The 0.2.4 icon update
+is ready; the system Installer is awaiting administrator authorization. Hardware and tool
+capability acceptance remain separate.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## Latest icon design proposal
@@ -22,7 +23,23 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 - [x] Generate the requested remote close-up + prominent Vibe professional icon.
 - [x] Save the 1254 × 1254 PNG with alpha and full prompt in Packaging/Artwork/Proposals.
 
-This separate design output has not replaced the canonical icon or installed 0.2.2 bundle.
+The exact close-up design is now canonical in 0.2.4; the earlier 0.2.3 package omitted it.
+
+## 0.2.4 — ship the enlarged remote + Vibe icon
+
+- [x] Promote the exact close-up PNG; preserve the full-remote variant and generation prompts.
+- [x] Regenerate ICNS, inspect 64/128 pixel representations, and verify all ten sizes.
+- [x] Build and independently verify package metadata, icon bytes, signature and checksum.
+- [x] Pass 30 Python tests, neutral config validation and diff checks; no runtime source changed.
+- [x] Inspect the unbound draft and all 9 workspace drafts as empty, quit 0.2.3 and back it up.
+- [ ] Complete macOS Installer administrator authorization, then verify installed About icon/version.
+
+Package: ~/Downloads/VibeRemote-0.2.4-System-20261009/VibeRemote-0.2.4-arm64.pkg
+(3,009,575 bytes; 0.2.4/build 7; LocalSystem only; /Applications).
+SHA-256: 5d25293c148058e74e7259ac0c4db4e3fd789bd86657817ff6bbcd115de4ba19.
+Backup: ~/Library/Caches/VibeRemote/PreviousVersions/VibeRemote-0.2.3-20261009-093253.app.backup.
+The installed 0.2.3 belongs to root; direct replacement was denied before changing it.
+The standard system Installer is open at authorization. User settings remain unchanged.
 
 ## 0.2.3 — Pro 2 button layout and tool defaults
 
@@ -36,15 +53,15 @@ This separate design output has not replaced the canonical icon or installed 0.2
 - [x] Review production-view renders at 940/1040 and minimum 740 point widths; no overlap/overflow.
   These use isolated fake services and configuration, not actual tool/device state.
 - [x] Build and independently verify 0.2.3 / build 6 system-domain package, payload and signature.
-- [ ] Replace the currently running 0.2.2 after current drafts are confirmed safe to close.
+- [x] Later observed user-installed 0.2.3 on 2026-10-09; disk metadata and About window agree.
 - [ ] Physically verify all keys and actual Codex/Claude/WorkBuddy bindings and actions.
 
 Artifact: ~/Downloads/VibeRemote-0.2.3-System-20261008/VibeRemote-0.2.3-arm64.pkg
 (2,713,828 bytes; arm64, macOS 13+; LocalSystem only; /Applications).
 SHA-256: 0a401aa0a130d13cd9f964335332351f64aef4278c7b426efdc0bbd20b016dc7.
-Package is unsigned/unnotarized with an ad-hoc-signed app. The running system bundle remains
-0.2.2; native window inspection returned a closed-pipe error even after a reset, so no draft
-emptiness was inferred and no app was quit or replaced. New workspace buttonActions require
+Package is unsigned/unnotarized with an ad-hoc-signed app. At delivery on 2026-10-08, the
+running system bundle remained 0.2.2 and native inspection failed, so no app was quit or
+replaced then. The user subsequently installed 0.2.3. New workspace buttonActions require
 0.2.3+; old configuration stays readable, and pre-change settings are backed up when saved.
 
 ## 0.2.2 — shared Applications and Pro 2 + Vibe icon

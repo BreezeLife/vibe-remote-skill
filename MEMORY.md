@@ -150,3 +150,13 @@ the user's 2026-10-08 system Applications requirement. Other packaging safeguard
   retain learned inputs, bindings, other workspaces and drafts. Action-only reset retains shortcuts too.
 - Discard remaining events in a resolved gesture batch after a workspace switch.
 - New configurations containing buttonActions require 0.2.3+; retain backups before downgrading.
+
+## 2026-10-09 — use the requested close-up icon in the app
+
+- The large remote + Vibe image was only a proposal and did not ship in 0.2.3. The user
+  reported the old icon in About. Promote the exact proposal to canonical AppIcon.png
+  and regenerate AppIcon.icns; app/package builds copy ICNS and do not regenerate it.
+- Version 0.2.4/build 7 ships the close-up. Preserve the 0.2.2–0.2.3 full-remote source
+  as AppIcon-pro2-vibe-full.png and keep all generation prompts.
+- Verify the selected PNG, ICNS sizes, package and installed resource identity, then
+  observe the running About window; a generated preview alone is not an app update.

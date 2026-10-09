@@ -3,8 +3,9 @@
 Generated on 2026-10-08 with the built-in image_gen tool, using the user's supplied
 cropped silver remote reference. `AppIcon-pro2-vibe-closeup.png` is the unmodified
 generated PNG. The enlarged directional ring and mint Vibe wordmark are the main
-visual elements. This is a separate design proposal; the installed 0.2.2 app and
-canonical AppIcon.png / AppIcon.icns have not been replaced by this iteration.
+visual elements. Originally saved as a separate proposal on 2026-10-08, this exact
+PNG was promoted to canonical AppIcon.png and regenerated into AppIcon.icns on
+2026-10-09 for version 0.2.4 after the user reported the old icon still shipping in 0.2.3.
 The user's reference image is not bundled.
 
 Tool options: transparent_background=true; one local reference image.

@@ -487,3 +487,32 @@ system 0.2.2 app failed with a closed-pipe error, including after resetting the 
 Finder was readable. No drafts were assumed empty, no app was quit, and no installed
 bundle, local settings or system permissions were changed. STATUS.md and .project-pulse/
 remain untouched. The earlier icon proposal remains separate from the canonical app icon.
+
+## 2026-10-09 — integrate the icon that was left as a proposal
+
+The user's 0.2.3 About screenshot correctly showed the previous small full-remote icon.
+Verified the system bundle's version and traced the mismatch: the requested close-up PNG
+was under Artwork/Proposals while the build copied the older checked-in AppIcon.icns.
+Promoted that exact generated PNG to AppIcon.png, archived the earlier branded design as
+AppIcon-pro2-vibe-full.png, regenerated ICNS, and bumped metadata to 0.2.4/build 7.
+Updated provenance and installation docs. No new artwork or runtime code was generated.
+
+Verified source PNG equals the requested proposal, ICNS differs from installed 0.2.3,
+all ten representations exist, and 64/128 pixel previews visibly show the close-up.
+Release/package build, 30 Python tests, neutral configuration validation, plist and diff
+checks passed. Independently expanded the package and verified 0.2.4/build 7, LocalSystem,
+/Applications payload, source/package ICNS identity, strict signature and SHA-256.
+Package: ~/Downloads/VibeRemote-0.2.4-System-20261009/VibeRemote-0.2.4-arm64.pkg,
+3,009,575 bytes; SHA-256 5d25293c148058e74e7259ac0c4db4e3fd789bd86657817ff6bbcd115de4ba19.
+It remains an ad-hoc-signed app in an unsigned/unnotarized development package.
+
+Native UI inspection worked this time. Observed 0.2.3 About and checked the unbound draft
+plus all 9 workspace drafts as empty with no capture in progress. Returned to the selected
+workspace, quit through the app and confirmed the process exited. Direct bundle replacement
+failed on root ownership before moving the installed app; copied a recoverable backup to
+~/Library/Caches/VibeRemote/PreviousVersions/VibeRemote-0.2.3-20261009-093253.app.backup.
+Noninteractive installer authorization was unavailable. Opened the exact 0.2.4 package
+in macOS Installer, selected its all-users system destination, and started installation.
+The system authorization step requires the user's Touch ID/admin credential; requested
+that completion in the system dialog without sending credentials in chat. At this point
+the old installed bundle/settings are preserved; final installation verification is pending.

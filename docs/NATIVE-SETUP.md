@@ -12,7 +12,8 @@
 先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
 Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
 
-当前打包版本为 **0.2.3 / build 6 / macOS 13+**，包含 Pro 2 实物按键布局与编程工具默认方案。
+当前打包版本为 **0.2.4 / build 7 / macOS 13+**，包含 Pro 2 实物按键布局与编程工具默认方案，
+并正式使用放大遥控器＋Vibe 字样的图标。
 安装包按构建机器的架构生成；Apple Silicon 对应 `arm64`。
 应用使用本地 ad-hoc 签名，安装包尚未 Developer ID 签名或 Apple 公证。
 安装不自动授予蓝牙或语音识别权限，也不安装其他桥接程序或驱动。
@@ -27,7 +28,7 @@ bash scripts/package_macos_app.sh
 
 ```sh
 VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
-sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.3-arm64.pkg" -target /
+sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.4-arm64.pkg" -target /
 open "/Applications/Vibe Remote.app"
 ```
 
