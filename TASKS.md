@@ -23,6 +23,7 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.2.9 — current-focus voice input
 
+Implementation `f3520b3` is pushed to origin/main; local verification is complete.
 User explicitly confirmed direct input at the current cursor, without automatic sending.
 This supersedes the earlier draft-first preference below; old configuration retains draft mode.
 

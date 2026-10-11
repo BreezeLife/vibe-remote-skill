@@ -1,13 +1,20 @@
 # Voice providers
 
-## Native app 0.2.8
+## Native app 0.2.9
 
 Prefer the self-developed app's **语音输入** page. It supports provider profiles for Typeless,
 Doubao IME, Wispr Flow, Superwhisper, macOS Dictation and custom apps. Select an installed
 MiRemoteV 2ch / BlackHole 2ch loopback and the same microphone in the provider. Manual mode
 is default; configure optional hold/toggle shortcuts only after matching them locally.
-Prepare the native receiver, keep it focused, finish the provider, and explicitly append the
-reviewed text to the current workspace draft. No provider is installed, no system audio default
+Choose the text destination independently of the provider. Old configurations default to draft:
+prepare the native receiver, keep it focused, finish the provider, and explicitly append reviewed
+text to the workspace draft. For current-focus mode, prepare then click the desired editable field
+before holding the remote key. Disable provider auto-send even in manual trigger mode. The provider
+places text itself; wait for it to finish, then explicitly confirm completion through the app menu
+before another hold. The app must not open its receiver or reinsert external output in this mode.
+Built-in Apple Speech can directly replace the captured selection once after release/finalization;
+changed focus, capture interruption or uncertain writes retain text for manual inspection/copy.
+Handle and clear retained text before a new utterance; no automatic retry or Enter is emitted. No provider is installed, no system audio default
 changes, and no text is submitted automatically. See the repository's docs/VOICE-PROVIDERS.md.
 
 The legacy bridge instructions below are historical references, not the native default.

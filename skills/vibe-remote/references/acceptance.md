@@ -11,7 +11,18 @@ Separate implemented skill functions, installed dependencies, and observed hardw
 | Local / SSH tmux switching | Executable Python discovery and selection helper | Installed tmux, existing session; existing SSH access for remote |
 | Permanent overlay / pointer | Product contract only | Companion application; not included |
 
-## Checks
+## Native current-focus checks
+
+For native 0.2.9, select current-focus mode and first test a disposable plain editor input.
+Confirm insertion at the caret/selection after hold-release, with no Enter or submission.
+Change the target or interrupt the connection during a hold: native text should remain in
+Vibe Remote for manual inspection. Do not repeat an uncertain write. For external providers,
+verify the selected virtual microphone, disabled auto-send, actual recording end and exactly
+one provider insertion; explicitly confirm completion before preparing the next hold.
+Confirm old workspace drafts remain intact and bound insert/send/confirm actions are blocked.
+Agent-generated keys do not establish physical remote acceptance; observe user-operated keys.
+
+## Draft/workspace and legacy checks
 
 1. Run doctor and configuration validation.
 2. Verify one mapping owner per button and the actual provider shortcut.

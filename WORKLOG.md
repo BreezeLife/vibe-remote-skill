@@ -764,3 +764,8 @@ ad-hoc signed, package unsigned/unnotarized. Installed/running remains system 0.
 ~/Applications copy. Asked for current draft safety before exit/update; no response yet.
 Previous GitHub runs for 6cf811a and 90f044a succeeded; synchronization of this revision follows.
 Unrelated STATUS.md and .project-pulse/ remain untouched.
+
+Implementation and package source committed/pushed as `f3520b3`. Updated the installed skill's
+setup and acceptance guidance for the new destination, including the direct-mode OK restriction.
+Current draft-safety confirmation and actual key presses have not arrived; no app was quit or
+installed. Hosted checks for the implementation are tracked separately from local verification.
