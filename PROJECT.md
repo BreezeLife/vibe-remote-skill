@@ -42,7 +42,15 @@ catalog fixtures and builds do not establish real navigation, input or Steer acc
 Version 0.2.7 identifies explicit pairing-information loss, suspends automatic retries for that
 device, and shows macOS re-pairing guidance. It never removes system pairing; ordinary idle
 reconnect remains separate and retains the saved bond/selection.
-Doubao/Typeless virtual microphone remains future work.
+Version 0.2.8 adds configurable third-party voice providers (Typeless, Doubao IME, Wispr Flow,
+Superwhisper, macOS Dictation and custom tools). Explicit preparation routes remote PCM to an
+already installed, UID-pinned MiRemoteV 2ch / BlackHole 2ch device; no driver is bundled or installed.
+Manual triggering is the default. Locally matched restricted shortcuts optionally implement hold
+or paired taps. A dedicated in-memory receiver locks the workspace until the user confirms the
+provider finished, then appends its text to the existing draft without submitting. Missing routes,
+focus loss and uncertain provider state never fall back to another microphone or automatic send.
+Third-party permissions, microphone selection and physical transcription still need acceptance.
+Developing and distributing our own virtual microphone driver remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
 Its planner returns semantic actions and never injects GUI keys. The exact-session
@@ -75,7 +83,8 @@ Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
 `bash scripts/test_macos_model.sh`, `bash scripts/test_macos_hid.sh`,
 `bash scripts/test_macos_tools.sh`, `bash scripts/test_macos_controls.sh`,
 `bash scripts/test_macos_catalog.sh`, `bash scripts/test_macos_integration.sh`
-and `bash scripts/build_macos_app.sh`.
+`bash scripts/test_macos_audio_output.sh`, `bash scripts/test_macos_external_dictation.sh`,
+`bash scripts/test_macos_provider_apps.sh` and `bash scripts/build_macos_app.sh`.
 Normal builds output to ~/Library/Caches/VibeRemote/Build without writing to system
 application directories. `bash scripts/package_macos_app.sh` stages the app in a local
 temporary directory and produces a `.pkg` plus SHA-256 file. From 0.2.2, the package uses

@@ -1,7 +1,8 @@
 import Foundation
 import VibeRemoteCore
 
-/// Configuration only: drafts, device identities and observed capabilities never enter this store.
+/// Configuration only: drafts, HID identities and observed capabilities never enter this store.
+/// An explicitly selected virtual audio UID is setup, never proof that a device is available.
 struct NativeSettingsStore {
     let url: URL
     var backupURL: URL { url.deletingLastPathComponent().appendingPathComponent("settings.previous.json") }

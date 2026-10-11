@@ -19,19 +19,23 @@ final class RemoteModel: ObservableObject {
     @Published private(set) var message = "连接遥控器并启用语音识别，然后按住遥控器的语音键。"
     @Published var localeIdentifier = "zh-CN"
     @Published var allowServerRecognition = false
+    @Published private(set) var usesExternalInput = false
 
     private let bluetooth: BluetoothServicing
     private let speech: SpeechServicing
+    private let externalInput: ExternalDictationHandling?
     private var speechFailed = false
     private var completedDuringHold = false
     private var workspaceDrafts: [UUID: DraftSession] = [:]
     private var unboundDraft = DraftSession()
 
     init(bluetooth: BluetoothServicing = BluetoothService(),
-         speech: SpeechServicing = SpeechService()) {
+         speech: SpeechServicing = SpeechService(), externalInput: ExternalDictationHandling? = nil) {
         self.bluetooth = bluetooth
         self.speech = speech
+        self.externalInput = externalInput
         discovery = bluetooth.discovery
+        externalInput?.onChange = { [weak self] in self?.objectWillChange.send() }
         recognitionEnabled = speech.isAuthorized
         bluetooth.onDiscovery = { [weak self] state in self?.discovery = state }
         bluetooth.onStatus = { [weak self] status in self?.connectionStatus = status }
@@ -41,7 +45,9 @@ final class RemoteModel: ObservableObject {
         bluetooth.onSamples = { [weak self] samples, rate in
             guard let self, self.isReceivingAudio else { return }
             self.sampleCount += samples.count
-            if self.draft.phase == .capturing {
+            if self.usesExternalInput {
+                self.externalInput?.append(samples: samples, sampleRate: rate)
+            } else if self.draft.phase == .capturing {
                 self.speech.append(samples: samples, sampleRate: rate)
             }
         }
@@ -73,10 +79,11 @@ final class RemoteModel: ObservableObject {
         }
     }
 
-    var isBusy: Bool { isReceivingAudio || draft.isBusy }
-    var canCopy: Bool { !isReceivingAudio && draft.canCopy }
+    var isBusy: Bool { isReceivingAudio || draft.isBusy || externalInput?.isBusy == true }
+    var canCopy: Bool { !isBusy && draft.canCopy }
 
     var captureLabel: String {
+        if usesExternalInput { return isReceivingAudio ? "收音 · 外部输入法" : "外部输入法" }
         if isReceivingAudio && draft.phase != .capturing { return "收音中 · 未转写" }
         switch draft.phase {
         case .idle: return "等待说话"
@@ -127,6 +134,12 @@ final class RemoteModel: ObservableObject {
     func stopCapture() { bluetooth.stopCapture() }
 
     func cancelUtterance() {
+        if usesExternalInput {
+            externalInput?.interrupt()
+            bluetooth.stopCapture()
+            message = "已停止音频转交。请确认输入法已停止，再处理接收框中的文字。"
+            return
+        }
         draft.cancel()
         completedDuringHold = false
         speech.cancel()
@@ -141,8 +154,24 @@ final class RemoteModel: ObservableObject {
     }
 
     func replaceDraft(_ text: String) {
-        guard !isReceivingAudio else { return }
+        guard !isBusy else { return }
         draft.replaceText(text)
+    }
+
+    @discardableResult
+    func setExternalInputEnabled(_ enabled: Bool) -> Bool {
+        guard !isBusy else { return false }
+        usesExternalInput = enabled
+        recognitionIssue = nil
+        return true
+    }
+
+    @discardableResult
+    func appendExternalResult(_ text: String) -> Bool {
+        guard usesExternalInput, !isBusy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        let result = draft.replaceText(draft.text + (draft.text.isEmpty ? "" : "\n") + text)
+        if result { message = "第三方识别文字已追加到当前草稿；仍需检查后确认输入。" }
+        return result
     }
 
     /// Moving between destinations never moves text. Capture and finalization
@@ -167,6 +196,7 @@ final class RemoteModel: ObservableObject {
     }
 
     func shutdown() {
+        externalInput?.interrupt()
         speech.cancel()
         bluetooth.disconnect()
     }
@@ -176,6 +206,10 @@ final class RemoteModel: ObservableObject {
             let wasReceivingAudio = isReceivingAudio
             isReceivingAudio = false
             level = -60
+            if usesExternalInput {
+                if wasReceivingAudio { externalInput?.finishCapture() }
+                return
+            }
             if completedDuringHold {
                 completedDuringHold = false
                 if let id = draft.sessionID { draft.complete(session: id) }
@@ -193,6 +227,14 @@ final class RemoteModel: ObservableObject {
         isReceivingAudio = true
         sampleCount = 0
         sampleRate = rate
+        if usesExternalInput {
+            guard let externalInput else {
+                recognitionIssue = "第三方语音通道不可用；请在「语音输入」配置后重试。"
+                return
+            }
+            externalInput.startCapture(sampleRate: rate)
+            return
+        }
         recognitionEnabled = speech.isAuthorized
         guard recognitionEnabled else {
             message = "尚未获得语音识别授权。请松开语音键，点击「启用语音识别」后再试。"

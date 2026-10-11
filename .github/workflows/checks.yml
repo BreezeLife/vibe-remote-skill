@@ -43,6 +43,12 @@ jobs:
         run: bash scripts/test_macos_speech.sh
       - name: Voice-key integration regressions
         run: bash scripts/test_macos_model.sh
+      - name: Explicit virtual audio output checks
+        run: bash scripts/test_macos_audio_output.sh
+      - name: External dictation lifecycle checks
+        run: bash scripts/test_macos_external_dictation.sh
+      - name: Voice provider app discovery checks
+        run: bash scripts/test_macos_provider_apps.sh
       - name: Device input lifecycle checks
         run: bash scripts/test_macos_hid.sh
       - name: Guarded tool adapter checks

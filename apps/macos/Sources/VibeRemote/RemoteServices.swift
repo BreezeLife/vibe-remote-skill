@@ -35,3 +35,13 @@ protocol SpeechServicing: AnyObject {
 
 extension BluetoothService: BluetoothServicing {}
 extension SpeechService: SpeechServicing {}
+
+/// External capture stays busy through provider processing and explicit draft review.
+protocol ExternalDictationHandling: AnyObject {
+    var isBusy: Bool { get }
+    var onChange: (() -> Void)? { get set }
+    func startCapture(sampleRate: Int)
+    func append(samples: [Int16], sampleRate: Int)
+    func finishCapture()
+    func interrupt()
+}

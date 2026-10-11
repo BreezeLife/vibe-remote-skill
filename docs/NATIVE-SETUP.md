@@ -2,7 +2,7 @@
 
 这是我们自己的 macOS 开发预览版，直接通过蓝牙读取小米遥控器的 ATVV 音频。
 不需要安装 MiRemote、SayAll、BlackHole 或其他桥接应用。0.2 使用 Apple 语音识别，
-新增可视化按键配置、工作区草稿和编程工具适配。豆包 / Typeless 虚拟麦克风尚未实现。
+新增可视化按键配置、工作区草稿和编程工具适配。0.2.8 新增第三方语音配置与已安装虚拟音频通道转交，见[语音输入配置](VOICE-PROVIDERS.md)。
 
 ## 安装包
 
@@ -12,7 +12,7 @@
 先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
 Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
 
-当前打包版本为 **0.2.7 / build 10 / macOS 13+**，新增 Codex 一键配置、项目与会话切换、
+当前打包版本为 **0.2.8 / build 11 / macOS 13+**，新增 Codex 一键配置、项目与会话切换、
 确认输入和运行中补充任务。保留 Pro 2 实物按键布局、编程工具默认方案、附近遥控器选择、
 有限自动重连，以及放大遥控器＋Vibe 字样的图标。实际工具能力仍需按下文逐项检查。
 安装包按构建机器的架构生成；Apple Silicon 对应 `arm64`。
@@ -29,7 +29,7 @@ bash scripts/package_macos_app.sh
 
 ```sh
 VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
-sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.7-arm64.pkg" -target /
+sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.8-arm64.pkg" -target /
 open "/Applications/Vibe Remote.app"
 ```
 
@@ -300,7 +300,7 @@ CLI、截图附件和指针功能不属于本版已实现的原生动作。
 - 断连会结束收音；如果没有最终结果，会保留收到的部分文字并提示。可检查后手动修订。
 - 按键映射默认暂停；观察模式仍可能触发原始 macOS 按键。只有完整独占并验证后才启用映射。
 - 工具操作需要辅助功能、具体工作区绑定和当次检查，不盲目粘贴或按 Enter。
-- 本版不暴露豆包可选择的虚拟麦克风，也不向普通终端发送或注入 Ctrl+C。
+- 本版不附带虚拟麦克风驱动；第三方输入可使用已安装的 MiRemoteV 2ch / BlackHole 2ch。不会向普通终端发送或注入 Ctrl+C。
 
 ## 排障与验收
 

@@ -5,16 +5,19 @@ import SwiftUI
 struct VibeRemoteApp: App {
     @StateObject private var model: RemoteModel
     @StateObject private var controls: ControlsModel
+    @StateObject private var external: ExternalDictationController
 
     init() {
-        let voice = RemoteModel()
+        let externalInput = ExternalDictationController()
+        let voice = RemoteModel(externalInput: externalInput)
+        _external = StateObject(wrappedValue: externalInput)
         _model = StateObject(wrappedValue: voice)
         _controls = StateObject(wrappedValue: ControlsModel(voice: voice))
     }
 
     var body: some Scene {
         Window("Vibe Remote", id: "remote") {
-            SettingsViews(voice: model, controls: controls)
+            SettingsViews(voice: model, controls: controls, external: external)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     controls.shutdown()
                 }

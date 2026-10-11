@@ -1,5 +1,18 @@
 # Voice providers
 
+## Native app 0.2.8
+
+Prefer the self-developed app's **语音输入** page. It supports provider profiles for Typeless,
+Doubao IME, Wispr Flow, Superwhisper, macOS Dictation and custom apps. Select an installed
+MiRemoteV 2ch / BlackHole 2ch loopback and the same microphone in the provider. Manual mode
+is default; configure optional hold/toggle shortcuts only after matching them locally.
+Prepare the native receiver, keep it focused, finish the provider, and explicitly append the
+reviewed text to the current workspace draft. No provider is installed, no system audio default
+changes, and no text is submitted automatically. See the repository's docs/VOICE-PROVIDERS.md.
+
+The legacy bridge instructions below are historical references, not the native default.
+Do not infer Doubao IME's current shortcut from the old Doubao/SayAll preset.
+
 Read the user's installed provider settings before editing anything. A physical microphone
 key is a capture gesture; the bridge translates that into the provider's actual shortcut.
 Do not equate input-method dictation with a ChatGPT voice conversation.

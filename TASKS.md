@@ -1,23 +1,57 @@
 # Tasks
 
-Updated: 2026-10-11 (Asia/Shanghai).
+Updated: 2026-10-12 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
 The user explicitly requested self-developed software, referencing MiRemote's approach
-without using its app. The earlier SayAll installation path is superseded. The current
-native application does not require a third-party application or driver. A later
+without using its app. The earlier SayAll installation path is superseded. The built-in
+Apple Speech path does not require a third-party application or driver. A later
 read-only check now finds SayAll and MiRemoteV2ch installed; their installation was
 not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Observed on 2026-10-11: system /Applications/Vibe Remote.app is 0.2.6 / build 9 and a
+Observed on 2026-10-12: system /Applications/Vibe Remote.app is 0.2.7 and a
 process runs from that system path; no ~/Applications copy. The user reports a discovered remote
 failing with Peer removed pairing information and needing system Forget to reconnect. The cause
 of recurring bond loss and successful physical repair are not yet confirmed. 0.2.7 recovery guidance
-is packaged; the running 0.2.6 and user's current drafts/configuration are preserved.
+is installed; the running app and user's current drafts/configuration are preserved.
+GitHub run 38144937313 for 430feba completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.8 — third-party voice input configuration
+
+- [x] Add native profiles for Typeless, Doubao IME, Wispr Flow, Superwhisper, macOS Dictation
+  and custom providers. Preserve older settings, button/workspace profiles and drafts.
+- [x] Detect installed provider bundles, including system/user Input Methods; distinguish Doubao
+  IME from the chat client. Provide official setup links and a user test guide.
+- [x] Implement explicit installed-loopback output selection, mono resampling, pinned AUHAL output,
+  bounded buffering, device checks, drain/cancel and stale-callback guards. No driver/default changes.
+- [x] Manual default plus optional configured hold/toggle gestures; own focused receiver, no Enter
+  or submit, locked draft destination and explicit provider-finished review before appending.
+- [x] Fix review findings: reject settings persistence during capture; invalidate preparation
+  confirmations after changing provider app; halt the gesture immediately on asynchronous route loss.
+- [x] Final regression/build/package verification passed.
+- [x] 80 core tests; 26 voice-model scenarios/182 assertions; 21 external lifecycle, 46 audio,
+  21 provider discovery, 42 speech, 48 HID, 307 tool, 15 settings, 27 catalog checks; Python 30 and
+  neutral configuration validation. Controls integration: 61 scenarios / 197 assertions.
+- [x] Isolated SwiftUI render at 740 pt settings / 680 pt receiver inspected; fixed a truncated guide line.
+- [x] Independent package expansion verified 0.2.8/build 11, system Applications/LocalSystem-only,
+  nonrelocation, canonical icon equality and strict ad-hoc signature.
+- [ ] Install after current in-memory drafts are safe to close; system /Applications only.
+- [ ] User verifies provider mic choice/shortcut, true remote audio, complete Chinese/English text,
+  manual/hold/toggle operation as applicable, focus/device loss and retained old draft.
+- [ ] Our own virtual microphone driver and broader device compatibility remain future work.
+
+User chose third-party output first in Vibe Remote, then review/append. Metadata inspection found
+Doubao IME 0.5.7 and MiRemoteV 2ch installed; no live provider or remote-audio acceptance is claimed.
+Guide: docs/VOICE-PROVIDERS.md.
+Package: ~/Downloads/VibeRemote-0.2.8-System-20261012/VibeRemote-0.2.8-arm64.pkg
+(3,442,686 bytes; arm64; app ad-hoc signed, package unsigned/unnotarized).
+SHA-256: 0f82be3c0da4b3ecb9348e33c7fce3bf04be106fd633d378680e476c2c250626.
+Installed/running remains 0.2.7; update awaits current draft-safety confirmation. No settings,
+input source, system default audio device, real recording or provider hotkeys were changed.
 
 ## 0.2.7 — explicit pairing-loss recovery
 
@@ -34,7 +68,7 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
   source icon, /Applications payload, nonrelocation and LocalSystem-only domain.
 - [x] Correct the prior CI delayed-navigation fixture: observed a 150 ms first snapshot against
   an unrealistically short 100 ms budget, then passed with the production 2 second budget.
-- [ ] Install 0.2.7 when current in-memory drafts are safe to close.
+- [ ] Install the latest package (0.2.8 supersedes this package) when current drafts are safe.
 - [ ] User confirms system re-pair restores ATVV readiness and normal wake/reconnect works afterward.
 - [ ] Determine recurring bond-loss trigger (pairing chord, another host, or normal wake); do not
   describe the root cause as resolved based only on error handling tests.

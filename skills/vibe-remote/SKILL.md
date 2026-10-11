@@ -24,7 +24,11 @@ Saved/discovered devices do not establish audio readiness; manual stops and capt
 require explicit reconnection. See NATIVE-SETUP for pairing and discovery limits.
 The user's native-app path requires no SayAll/MiRemote bridge; do not install one implicitly.
 Native presets do not prove physical input, focus, insertion, send or stop acceptance.
-A virtual microphone, software pointer and native CLI runtime adapter remain future work.
+Native 0.2.8 adds third-party provider profiles and explicit forwarding to an installed
+MiRemoteV 2ch / BlackHole 2ch loopback. Manual mode is default; optional matched hold/toggle
+shortcuts require local setup. Text stays in our receiver until explicit completion/append.
+See docs/VOICE-PROVIDERS.md. No driver is shipped; our own virtual microphone driver,
+software pointer and native CLI runtime adapter remain future work.
 APP operations through this skill use available computer-use tools and freshly observed controls.
 
 ## Start with the requested path

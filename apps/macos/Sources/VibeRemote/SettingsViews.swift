@@ -5,6 +5,7 @@ import VibeRemoteCore
 struct SettingsViews: View {
     @ObservedObject var voice: RemoteModel
     @ObservedObject var controls: ControlsModel
+    @ObservedObject var external: ExternalDictationController
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -43,6 +44,7 @@ struct SettingsViews: View {
                     Group {
                         switch controls.page {
                         case .dictation: RemoteView(model: voice, editsLocked: controls.operationInProgress)
+                        case .voiceInput: VoiceInputSettingsView(controls: controls, voice: voice, external: external)
                         case .buttons: ButtonSettingsView(model: controls)
                         case .tools: ToolSettingsView(model: controls)
                         case .connection: ConnectionSettingsView(model: controls, voice: voice, hid: controls.hid)
@@ -59,6 +61,10 @@ struct SettingsViews: View {
                 }.padding(14).background(.bar)
             }.frame(minWidth: 740)
         }.frame(minWidth: 960, minHeight: 720)
+            .sheet(isPresented: Binding(get: { external.isBusy }, set: { _ in })) {
+                ExternalDictationSheet(external: external, voice: voice)
+                    .interactiveDismissDisabled()
+            }
             .sheet(item: $controls.pendingSend) { preview in
                 VStack(alignment: .leading, spacing: 16) {
                     Label(preview.confirmation.kind == .steer ? "补充当前任务 · \(preview.workspace.name)" : "确认发送到 \(preview.workspace.name)",

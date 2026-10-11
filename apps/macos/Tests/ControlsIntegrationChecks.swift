@@ -261,6 +261,25 @@ private final class IntegrationCatalog: CodexConversationListing {
             check(f.ax.writes.count == 1 && f.ax.presses.isEmpty, "physical key dispatch uses scoped insertion without sending")
             check(f.voice.draft.text == "synthetic alpha draft", "configuration preserves the owned draft")
         }
+        await run("voice provider settings preserve drafts and cannot diverge during capture") { f in
+            let before = f.controls.settings
+            var config = VoiceInputConfiguration()
+            config.provider = .typeless
+            config.setProfile(VoiceInputProfile(provider: .typeless))
+            check(f.controls.updateSettings { $0.voiceInput = config }, "idle provider configuration saves")
+            check(f.voice.usesExternalInput && f.controls.settings.workspaces == before.workspaces &&
+                  f.controls.settings.mappings == before.mappings && f.voice.draft.text == "synthetic alpha draft",
+                  "saved mode applies without changing workspaces, HID or draft")
+            let stored = try Data(contentsOf: f.store.url)
+            f.bluetooth.stream(true)
+            check(!f.controls.updateSettings { $0.voiceInput = nil }, "capture rejects changing provider")
+            let afterBusyAttempt = try Data(contentsOf: f.store.url)
+            check(afterBusyAttempt == stored, "busy update leaves stored configuration intact")
+            check(f.voice.usesExternalInput, "busy update leaves runtime aligned")
+            f.bluetooth.stream(false)
+            check(f.controls.updateSettings { $0.voiceInput = nil }, "idle can return to legacy built-in mode")
+            check(!f.voice.usesExternalInput && f.voice.draft.text == "synthetic alpha draft", "built-in mode retains original draft")
+        }
         await run("failed persistence preserves live configuration and drafts") { f in
             let before = f.controls.settings
             let stored = try Data(contentsOf: f.store.url)

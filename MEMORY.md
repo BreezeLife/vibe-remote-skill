@@ -248,3 +248,29 @@ experimental project APIs are not required by this milestone.
   reconnection wakes with a normal key; HOME+MENU belongs to pairing, not every connection.
 - The screenshot proves a pairing error, not why it recurred. Distinguish the implemented recovery
   handling from user-confirmed physical repair; ask about re-entering pairing mode/other hosts.
+
+
+## 2026-10-12 — third-party voice providers and retained drafts
+
+- The user requested Typeless, Doubao IME and mainstream voice-provider configuration, and
+  explicitly chose Vibe Remote drafts as the first destination. Keep coding-tool insertion/send
+  separate; the external provider must never be used as a bypass for unknown target/runtime state.
+- Native settings add optional voiceInput with independent provider profiles. Older settings
+  remain Apple Speech. Profiles hold setup (including an explicitly selected audio-device UID),
+  not microphone verification, recording state, transcripts or permission grants. New settings
+  require 0.2.8+; retain the validated settings backup before downgrading.
+- All external presets default to manual. Optional hold/toggle uses a locally matched F13–F20
+  or modifier+Space shortcut; do not simulate Fn or invent a Doubao IME shortcut based on the chat
+  app. Provider settings are not automatically edited. Third-party auto-send must be disabled.
+- Only supported, already-installed two-channel loopback devices can receive decoded remote PCM.
+  Pin AUHAL to the exact selected UID and verify the owning plug-in and live device format; never
+  alter system defaults, use speakers/Mac microphone as fallback, install or redistribute drivers.
+- Start requires our own receiver to be focused. Drain queued audio before the ending gesture.
+  Focus/device loss stops output and releases held keys; never retry an uncertain toggle. The
+  receiver remains open and workspace locked until the user observes provider completion.
+- External provider insertion is outside our state control. Require explicit completion and
+  visible text review before appending; retain previous workspace text and never infer provider
+  recording state from a saved configuration, successful key post, or elapsed time.
+- Doubao IME is found by com.bytedance.inputmethod.doubaoime in system/user Input Methods roots;
+  the Doubao chat application is a different product. Other provider discovery is metadata-only,
+  not publisher authentication. Third-party audio/history handling follows their own policies.

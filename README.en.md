@@ -10,7 +10,7 @@ Codex skill for guarded workspace actions and terminal navigation.
 The native app receives remote ATVV audio directly, transcribes it through Apple
 Speech, and keeps separate editable drafts per workspace. Version 0.2 adds visual button
 configuration, calibrated HID capture and guarded desktop tool actions. It requires macOS
-13+ and Xcode Command Line Tools, with no third-party app or virtual driver.
+13+ and Xcode Command Line Tools; built-in recognition needs no third-party app or virtual driver.
 Version 0.2.3 matches the Pro 2 physical button layout and includes Codex, Claude and
 WorkBuddy action presets. Actions belong to each workspace; learned HID keys stay shared.
 Existing profiles keep their configuration until a preset is explicitly applied or actions are edited.
@@ -43,8 +43,14 @@ or transcript history. Copy any text you need before quitting.
 This locally signed developer preview still requires physical remote/permission
 acceptance. Presets cover Codex, Claude Desktop, both WorkBuddy bundle identities and
 custom apps. Live AX metadata must establish the target and supported input/send/stop
-controls; unavailable capabilities stay blocked. Doubao/Typeless virtual microphone output
-and native CLI runtime adapters remain future work. See the [native setup guide](docs/NATIVE-SETUP.md),
+controls; unavailable capabilities stay blocked. Version 0.2.8 adds provider profiles for
+Typeless, Doubao IME, Wispr Flow, Superwhisper, macOS Dictation and custom tools, with optional
+remote PCM forwarding to an explicitly selected, already installed MiRemoteV 2ch / BlackHole 2ch.
+Manual trigger is the default; configured hold/toggle shortcuts are optional. Text goes first to
+our own receiver for completion review and explicit appending to the workspace draft. No driver
+is installed or bundled. Provider permissions, microphone choice and physical use still require
+verification. See the [provider setup and test guide](docs/VOICE-PROVIDERS.md).
+Our own virtual microphone driver and native CLI runtime adapters remain future work. See the [native setup guide](docs/NATIVE-SETUP.md),
 [design](docs/NATIVE-DESIGN.md) and [third-party notices](apps/macos/THIRD_PARTY_NOTICES.md).
 
 The existing Python skill below remains separate: its planner returns semantic actions;

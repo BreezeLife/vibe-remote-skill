@@ -42,6 +42,10 @@ struct RemoteView: View {
                 }.padding(6)
             }
 
+            if model.usesExternalInput {
+                Label("已选择第三方语音输入。请在侧栏「语音输入」准备接收框；确认后文字会追加到这里。", systemImage: "mic.badge.plus")
+                    .font(.callout).foregroundStyle(.secondary)
+            } else {
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker("识别语言", selection: $model.localeIdentifier) {
@@ -60,6 +64,7 @@ struct RemoteView: View {
                        action: model.enableRecognition)
                     .disabled(model.recognitionEnabled || model.requestingAuthorization || model.isBusy)
                     .buttonStyle(.borderedProminent)
+            }
             }
 
             VStack(alignment: .leading, spacing: 8) {

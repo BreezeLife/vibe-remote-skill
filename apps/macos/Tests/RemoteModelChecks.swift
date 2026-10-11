@@ -686,7 +686,47 @@ private func unrelatedErrorsDoNotClaimPairingLoss() {
     }
 }
 
+private final class FakeExternalInput: ExternalDictationHandling {
+    var isBusy = false
+    var onChange: (() -> Void)?
+    var starts = 0, appends = 0, finishes = 0, interruptions = 0
+    func startCapture(sampleRate: Int) { starts += 1; isBusy = true; onChange?() }
+    func append(samples: [Int16], sampleRate: Int) { appends += 1 }
+    func finishCapture() { finishes += 1 }
+    func interrupt() { interruptions += 1 }
+}
+
+private func externalProviderOwnsOnlyItsCaptureAndLocksDestination() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: false), external = FakeExternalInput()
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech, externalInput: external)
+    model.replaceDraft("existing")
+    check(model.setExternalInputEnabled(true), "idle provider selection succeeds")
+    bluetooth.stream(true); bluetooth.stream(true); bluetooth.samples()
+    check(external.starts == 1 && external.appends == 1, "one external route per physical hold")
+    check(speech.startOptions.isEmpty && speech.appendedFrames.isEmpty, "external never falls back to Apple")
+    check(!model.selectWorkspace(UUID()) && !model.setExternalInputEnabled(false), "capture locks provider and draft owner")
+    bluetooth.stream(false)
+    check(external.finishes == 1 && model.isBusy && !model.canCopy, "external review remains busy after release")
+    model.replaceDraft("overwrite")
+    check(model.draft.text == "existing", "review preserves prior draft")
+    external.isBusy = false; external.onChange?()
+    check(model.appendExternalResult("result"), "explicit settled result appends")
+    check(model.draft.text == "existing\nresult", "external result preserves earlier text")
+    check(model.setExternalInputEnabled(false), "provider can change after review")
+}
+
+private func missingExternalServiceNeverFallsBack() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: true)
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech)
+    check(model.setExternalInputEnabled(true), "configuration alone is permitted")
+    bluetooth.stream(true); bluetooth.samples(); bluetooth.stream(false)
+    check(speech.startOptions.isEmpty, "missing external implementation does not use other microphone or Apple")
+    check(model.recognitionIssue != nil, "missing external route is visible")
+}
+
 private let cases: [(String, () -> Void)] = [
+    ("external provider isolation and draft locks", externalProviderOwnsOnlyItsCaptureAndLocksDestination),
+    ("external provider missing route", missingExternalServiceNeverFallsBack),
     ("pairing loss recovery and preservation", pairingLossExplainsRecoveryAndPreservesSelection),
     ("pairing error domain isolation", unrelatedErrorsDoNotClaimPairingLoss),
     ("discovery state and readiness separation", discoveryStateIsObservedWithoutInventingReadiness),

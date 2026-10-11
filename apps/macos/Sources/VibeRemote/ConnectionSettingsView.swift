@@ -14,11 +14,16 @@ struct ConnectionSettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     RemoteConnectionView(model: voice, editsLocked: model.operationInProgress)
                     Divider()
+                    if voice.usesExternalInput {
+                        Text("已选择第三方输入法；请在「语音输入」检查其麦克风和快捷键。Apple 识别授权仅用于内置模式。")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else {
                     HStack {
                         Text(voice.recognitionEnabled ? "语音识别已授权" : "语音识别尚未授权")
                         Spacer()
                         Button("启用语音识别", action: voice.enableRecognition)
                             .disabled(voice.recognitionEnabled || voice.isBusy || voice.requestingAuthorization)
+                    }
                     }
                     Text("已配对不等于正在收音；请在听写页检查真实音量和草稿。")
                         .font(.caption).foregroundStyle(.secondary)

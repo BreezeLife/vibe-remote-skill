@@ -6,11 +6,12 @@ import VibeRemoteCore
 @MainActor
 final class ControlsModel: ObservableObject {
     enum Page: String, CaseIterable, Identifiable {
-        case dictation = "听写", buttons = "按键", tools = "编程工具", connection = "连接与权限"
+        case dictation = "听写", voiceInput = "语音输入", buttons = "按键", tools = "编程工具", connection = "连接与权限"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .dictation: return "waveform"
+            case .voiceInput: return "mic.badge.plus"
             case .buttons: return "dpad"
             case .tools: return "chevron.left.forwardslash.chevron.right"
             case .connection: return "antenna.radiowaves.left.and.right"
@@ -85,6 +86,7 @@ final class ControlsModel: ObservableObject {
         self.adapter = adapter ?? ToolAdapter()
         do { settings = try store.load() }
         catch { settings = .defaults; status = "配置未载入：\(error.localizedDescription)。原文件已保留，可导入有效配置。" }
+        voice.setExternalInputEnabled(settings.voiceInput?.provider.isExternal == true)
         codexCatalogProfiles = settings.workspaces.filter { $0.codexConversation != nil }
         codexConversations = codexCatalogProfiles.compactMap(\.codexConversation)
         self.hid.onInput = { [weak self] input, down, time in self?.receive(input, down: down, time: time) }
@@ -391,9 +393,11 @@ final class ControlsModel: ObservableObject {
 
     @discardableResult
     private func persist(_ proposed: NativeSettings) -> Bool {
+        guard !voice.isBusy else { status = "请先结束听写并处理接收框，再保存配置。"; return false }
         do {
             try store.save(proposed)
             settings = proposed
+            voice.setExternalInputEnabled(settings.voiceInput?.provider.isExternal == true)
             engine.reset()
             pendingSend = nil
             capabilityResults = [:]
@@ -496,7 +500,7 @@ final class ControlsModel: ObservableObject {
             panel.nameFieldStringValue = "VibeRemote-settings.json"
             guard panel.runModal() == .OK, let url = panel.url else { return }
             try data.write(to: url, options: .atomic)
-            status = "已导出配置，不包含草稿、音频或设备身份。"
+            status = "已导出配置，不包含草稿、音频或 HID 设备身份；语音方案包含所选音频通道。"
         } catch { status = error.localizedDescription }
     }
     func importSettings() {
@@ -505,6 +509,7 @@ final class ControlsModel: ObservableObject {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard canEdit else { status = "听写状态已变化，请结束后重新导入。"; return }
         do {
             var imported = try NativeSettingsStore.decode(Data(contentsOf: url))
             // Preserve existing destinations and their draft ownership. A changed

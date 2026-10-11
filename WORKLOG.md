@@ -661,3 +661,45 @@ been skipped. The fixture allowed only 100 ms for two observations. Reproduced d
 with a 150 ms first fake snapshot (red307/1), then used the production 2-second navigation budget
 (green307/0), retaining the requirement to observe twice while opening the URL exactly once.
 This correction changes tests only; the independently verified 0.2.7 package is unchanged.
+
+
+## 2026-10-12 — native third-party voice-input configuration (0.2.8)
+
+User requested Typeless, Doubao IME and mainstream voice-input configurations, then explicitly
+chose Vibe Remote drafts as the first text destination. Added provider profiles and a dedicated
+settings page for Typeless, Doubao IME, Wispr Flow, Superwhisper, macOS Dictation and custom tools.
+Native optional voiceInput remains compatible with older schema-1 settings; independent profiles
+retain other settings and drafts. Official provider docs informed setup guidance without assuming
+that saved hotkeys or an installed app establish recording/permission state.
+
+Added a pinned AUHAL output path to existing MiRemoteV 2ch / BlackHole 2ch plug-ins, 8/16 kHz mono
+conversion to device rate, bounded two-second FIFO, drain, live route validation and cancellation.
+No default audio device mutation, fallback input, driver install or third-party application install.
+Read-only metadata found Doubao IME 0.5.7 in /Library/Input Methods and an eligible MiRemoteV 2ch.
+Audio driver identity resolves through plug-in device membership; device.owner is not reliable
+on this machine. No runtime device identifier was written to the project.
+
+Manual trigger is default; restricted, explicitly matched hotkeys optionally implement hold/toggle.
+Own receiver focus is required before forwarding. External processing locks workspace/configuration
+until the user confirms the provider has finished; reviewed text appends without replacing the old
+draft or sending. Route/focus loss halts output and releases held keys without retrying an uncertain
+toggle. Independent review caught import-during-capture mode divergence and stale preparation
+confirmation after app replacement; both corrected. Immediate route errors also notify the controller.
+
+Validation: core 80 tests (configuration red 71/1 then green 80/0), voice model 26 scenarios/182 assertions,
+external lifecycle 21, audio 46 (cancelled deferred-callback regression red 43/1 then green 46/0), provider
+bundle discovery 21, speech 42, HID 48, tool adapter 307, settings 15, catalog 27, controls integration 60/190
+before added provider-persistence coverage, Python 30 and neutral config valid. The final controls
+integration run passed 61 scenarios / 197 assertions, including provider/runtime persistence alignment. All services in tests are fake; no recording, key injection or real AI-tool
+interaction. Isolated SwiftUI renders at 740 pt settings and 680 pt receiver checked; corrected the
+shortcut-help line wrap and re-rendered. Builds pass; tests/compilation do not establish physical use.
+
+Packaged 0.2.8/build 11 and independently expanded it. Confirmed LocalSystem-only domains,
+/Applications destination, nonrelocation, canonical icon equality and strict app signature.
+Package: ~/Downloads/VibeRemote-0.2.8-System-20261012/VibeRemote-0.2.8-arm64.pkg,
+3,442,686 bytes; SHA-256 0f82be3c0da4b3ecb9348e33c7fce3bf04be106fd633d378680e476c2c250626.
+The verification helper initially rejected pkgbuild's empty relocate element; checking relocatable=false
+and no relocation entries confirms the intended package behavior. This was a checker assertion, not
+a package mutation. App ad-hoc signed, installer unsigned/unnotarized. System /Applications currently
+runs 0.2.7; asked whether its current in-memory drafts are safe before closing/opening the installer.
+Previous GitHub run 38144937313 for 430feba completed successfully. Public sync for this change follows.

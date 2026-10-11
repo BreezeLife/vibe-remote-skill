@@ -186,9 +186,12 @@ public struct NativeSettings: Codable, Equatable {
     public var schemaVersion: Int
     public var mappings: [ButtonMapping]
     public var workspaces: [WorkspaceProfile]
+    public var voiceInput: VoiceInputConfiguration?
     public init(format: String = "vibe-remote-native", schemaVersion: Int = 1,
-                mappings: [ButtonMapping] = NativeSettings.defaultMappings, workspaces: [WorkspaceProfile] = []) {
+                mappings: [ButtonMapping] = NativeSettings.defaultMappings, workspaces: [WorkspaceProfile] = [],
+                voiceInput: VoiceInputConfiguration? = nil) {
         self.format = format; self.schemaVersion = schemaVersion; self.mappings = mappings; self.workspaces = workspaces
+        self.voiceInput = voiceInput
     }
     public static var defaults: NativeSettings { NativeSettings() }
     public static var defaultMappings: [ButtonMapping] {
@@ -238,6 +241,7 @@ public struct NativeSettings: Codable, Equatable {
         try require(workspaces.count <= 100 && Set(workspaces.map(\.id)).count == workspaces.count,
                     "工作区过多或标识重复")
         for workspace in workspaces { try workspace.validate() }
+        try voiceInput?.validate()
     }
 }
 
@@ -433,12 +437,13 @@ extension WorkspaceProfile {
 }
 
 extension NativeSettings {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case format, schemaVersion, mappings, workspaces }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case format, schemaVersion, mappings, workspaces, voiceInput }
     public init(from decoder: Decoder) throws {
         let values = try strictContainer(decoder, CodingKeys.self)
         self.init(format: try values.decode(String.self, forKey: .format),
                   schemaVersion: try values.decode(Int.self, forKey: .schemaVersion),
                   mappings: try values.decode([ButtonMapping].self, forKey: .mappings),
-                  workspaces: try values.decode([WorkspaceProfile].self, forKey: .workspaces))
+                  workspaces: try values.decode([WorkspaceProfile].self, forKey: .workspaces),
+                  voiceInput: try values.decodeIfPresent(VoiceInputConfiguration.self, forKey: .voiceInput))
     }
 }
