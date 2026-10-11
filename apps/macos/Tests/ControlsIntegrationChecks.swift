@@ -280,6 +280,39 @@ private final class IntegrationCatalog: CodexConversationListing {
             check(f.controls.updateSettings { $0.voiceInput = nil }, "idle can return to legacy built-in mode")
             check(!f.voice.usesExternalInput && f.voice.draft.text == "synthetic alpha draft", "built-in mode retains original draft")
         }
+        await run("current focus destination saves independently and blocks bound draft actions") { f in
+            let before = f.controls.settings
+            var config = VoiceInputConfiguration(destination: .currentFocus)
+            check(f.controls.updateSettings { $0.voiceInput = config }, "direct destination saves")
+            check(f.voice.inputDestination == .currentFocus && !f.voice.usesExternalInput, "built-in direct mode applies")
+            check(f.voice.draft.text == "synthetic alpha draft" && f.voice.directDraft.text.isEmpty, "bound text is not copied into direct mode")
+            f.seize()
+            for action in [RemoteAction.insertDraft, .sendDraft, .confirmInput] {
+                f.controls.perform(action); await settle(f)
+            }
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.writes.isEmpty && f.ax.presses.isEmpty && f.controls.pendingSend == nil, "direct mode cannot insert or send stale bound text")
+            config.provider = .typeless
+            config.setProfile(VoiceInputProfile(provider: .typeless))
+            check(f.controls.updateSettings { $0.voiceInput = config }, "provider can change without destination")
+            check(f.voice.inputDestination == .currentFocus && f.voice.usesExternalInput, "external direct mode applies")
+            check(f.controls.settings.workspaces == before.workspaces && f.controls.settings.mappings == before.mappings, "selection preserves workspace and calibration")
+            f.bluetooth.stream(true)
+            check(!f.controls.updateSettings { $0.voiceInput?.destination = .draft }, "physical capture blocks destination changes")
+            f.bluetooth.stream(false)
+            check(f.voice.inputDestination == .currentFocus, "busy attempt did not change live destination")
+            check(f.controls.updateSettings { $0.voiceInput = nil }, "old settings can restore draft mode")
+            check(f.voice.inputDestination == .draft && f.voice.draft.text == "synthetic alpha draft", "legacy behavior retains original draft")
+        }
+        await run("switch to current focus invalidates previously prepared send") { f in
+            f.seize()
+            f.controls.perform(.insertDraft); await settle(f)
+            f.controls.perform(.sendDraft); await settle(f)
+            check(f.controls.pendingSend != nil, "draft mode has a real fake-target preview")
+            check(f.controls.updateSettings { $0.voiceInput = VoiceInputConfiguration(destination: .currentFocus) }, "switch destination after review")
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses.isEmpty && f.controls.pendingSend == nil, "stale preview cannot send after direct mode selection")
+        }
         await run("failed persistence preserves live configuration and drafts") { f in
             let before = f.controls.settings
             let stored = try Data(contentsOf: f.store.url)

@@ -87,6 +87,7 @@ final class ControlsModel: ObservableObject {
         do { settings = try store.load() }
         catch { settings = .defaults; status = "配置未载入：\(error.localizedDescription)。原文件已保留，可导入有效配置。" }
         voice.setExternalInputEnabled(settings.voiceInput?.provider.isExternal == true)
+        voice.setInputDestination(settings.voiceInput?.destination ?? .draft)
         codexCatalogProfiles = settings.workspaces.filter { $0.codexConversation != nil }
         codexConversations = codexCatalogProfiles.compactMap(\.codexConversation)
         self.hid.onInput = { [weak self] input, down, time in self?.receive(input, down: down, time: time) }
@@ -398,6 +399,7 @@ final class ControlsModel: ObservableObject {
             try store.save(proposed)
             settings = proposed
             voice.setExternalInputEnabled(settings.voiceInput?.provider.isExternal == true)
+            voice.setInputDestination(settings.voiceInput?.destination ?? .draft)
             engine.reset()
             pendingSend = nil
             capabilityResults = [:]
@@ -695,6 +697,11 @@ final class ControlsModel: ObservableObject {
     }
     func perform(_ action: RemoteAction) {
         if action == .none { return }
+        if voice.inputDestination == .currentFocus, [.insertDraft, .sendDraft, .confirmInput].contains(action) {
+            pendingSend = nil
+            status = "当前焦点模式只填入语音文字；请在目标应用中自行发送。"
+            return
+        }
         if let reason = safety.blockReason(for: action) {
             status = reason
             if let profile = workspace { recordCheck(action, profile: profile, result: "当前检查失败：" + reason) }
@@ -816,6 +823,11 @@ final class ControlsModel: ObservableObject {
         }
     }
     func confirmSend() {
+        guard voice.inputDestination == .draft else {
+            pendingSend = nil
+            status = "当前焦点模式不会发送，请在目标应用中自行发送。"
+            return
+        }
         guard let pending = pendingSend else { return }
         pendingSend = nil
         guard let current = workspace, current == pending.workspace,

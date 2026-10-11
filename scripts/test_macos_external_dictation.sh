@@ -13,6 +13,7 @@ swiftc -swift-version 5 -module-cache-path "$external_cache" \
   -I "$external_dir" -L "$external_dir" -lVibeRemoteCore -Xlinker -rpath -Xlinker "$external_dir" \
   "$external_app/RemoteServices.swift" "$external_app/BluetoothService.swift" \
   "$external_app/SpeechService.swift" "$external_app/RemoteAudioOutput.swift" \
+  "$external_app/FocusedInputService.swift" \
   "$external_app/ExternalDictationController.swift" \
   "$external_dir/main.swift" -o "$external_dir/checks"
 "$external_dir/checks"

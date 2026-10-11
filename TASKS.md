@@ -13,16 +13,52 @@ not observed in this development turn and they are not part of the native build.
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
 Observed on 2026-10-12: system /Applications/Vibe Remote.app is 0.2.7 and a
-process runs from that system path; no ~/Applications copy. The user reports a discovered remote
-failing with Peer removed pairing information and needing system Forget to reconnect. The cause
-of recurring bond loss and successful physical repair are not yet confirmed. 0.2.7 recovery guidance
-is installed; the running app and user's current drafts/configuration are preserved.
-GitHub run 38144937313 for 430feba completed successfully.
+process runs from that system path; no ~/Applications copy. A user-authorized connection
+in the installed app reached ATVV ready at 16 kHz. System BLE and the Xiaomi HID interface
+were also observed. A bounded 60-second remote-only HID observer saw zero key events;
+button mapping, audio frames and transcription have not yet passed physical acceptance.
+The cause of the earlier recurring pairing loss remains unconfirmed. GitHub checks for
+6cf811a (run 38160177209) and 90f044a (run 38160245199) completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.9 — current-focus voice input
+
+User explicitly confirmed direct input at the current cursor, without automatic sending.
+This supersedes the earlier draft-first preference below; old configuration retains draft mode.
+
+- [x] Independent provider/destination configuration; strict migration preserves existing settings.
+- [x] Native per-hold focus capture, selected-text replacement only, exact target/text/selection
+  recheck and single-attempt readback. No Enter, clipboard fallback or automatic submission.
+- [x] Preserve failed/interrupted text separately from workspace drafts; block a new utterance
+  until it is handled, and block bound draft insert/send/confirm actions in direct mode.
+- [x] Distinguish true release from manual stop, watchdog, disconnect and shutdown before
+  finalization. External interruption cannot issue another toggle ending gesture.
+- [x] Third-party direct mode without receiver activation, explicit disabled-auto-send confirmation
+  even for manual trigger, current field checks, and explicit provider-finished rearming.
+- [x] Regression checks: core 83; voice model 37 scenarios / 224 assertions; controls integration
+  63 scenarios / 211 assertions; focused input 64; external lifecycle 48; audio 46; speech 42;
+  HID 48; tool adapter 307; settings 15; catalog 27; provider discovery 21; Python 30, all passed.
+  Neutral config validates. Actual app build and final package build passed.
+- [x] Fake-service UI renders at 740 pt inspected; direct settings, prepared/review and native
+  retained-text views fit without clipping. These are not real target input tests.
+- [x] Independently expand 0.2.9/build 12: LocalSystem-only, /Applications, nonrelocation,
+  canonical icon identity and strict ad-hoc app signature.
+- [ ] Install after current draft safety is confirmed, then select current-focus mode locally.
+- [ ] Real key sequence and audio-frame test with user-operated remote; the first observation
+  window had no key events. Never label injected events as physical acceptance.
+- [ ] Real plain-editor insertion/selection, focus-loss retention, Doubao microphone/shortcut
+  and provider completion test. Codex/Claude/WorkBuddy direct input remains unverified.
+
+Package: ~/Downloads/VibeRemote-0.2.9-System-20261012/VibeRemote-0.2.9-arm64.pkg
+(3,486,091 bytes; arm64; app ad-hoc signed, installer unsigned/unnotarized).
+SHA-256: 6388ce473e2b9b6f0a268d739947cf4e9063f18855a2f903cd9b33edcdddeae5.
+Installed/running remains 0.2.7. The app UI channel later returned a native pipe-closed error;
+no alternate UI automation was used. No system audio defaults, permissions, provider shortcuts
+or real settings were changed. Current update confirmation is pending.
 
 ## 0.2.8 — third-party voice input configuration
 
-Implementation commit `6cf811a` is pushed to origin/main. New hosted checks have been requested;
+Implementation commit `6cf811a` is pushed to origin/main; its hosted checks succeeded.
 local verification and installer checks below are complete. Installation/physical acceptance remain pending.
 
 - [x] Add native profiles for Typeless, Doubao IME, Wispr Flow, Superwhisper, macOS Dictation
@@ -71,7 +107,7 @@ input source, system default audio device, real recording or provider hotkeys we
   source icon, /Applications payload, nonrelocation and LocalSystem-only domain.
 - [x] Correct the prior CI delayed-navigation fixture: observed a 150 ms first snapshot against
   an unrealistically short 100 ms budget, then passed with the production 2 second budget.
-- [ ] Install the latest package (0.2.8 supersedes this package) when current drafts are safe.
+- [ ] Install the latest package (0.2.9 supersedes this package) when current drafts are safe.
 - [ ] User confirms system re-pair restores ATVV readiness and normal wake/reconnect works afterward.
 - [ ] Determine recurring bond-loss trigger (pairing chord, another host, or normal wake); do not
   describe the root cause as resolved based only on error handling tests.

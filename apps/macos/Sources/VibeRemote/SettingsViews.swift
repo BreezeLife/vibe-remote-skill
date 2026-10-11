@@ -61,7 +61,7 @@ struct SettingsViews: View {
                 }.padding(14).background(.bar)
             }.frame(minWidth: 740)
         }.frame(minWidth: 960, minHeight: 720)
-            .sheet(isPresented: Binding(get: { external.isBusy }, set: { _ in })) {
+            .sheet(isPresented: Binding(get: { external.isBusy && external.destination == .draft }, set: { _ in })) {
                 ExternalDictationSheet(external: external, voice: voice)
                     .interactiveDismissDisabled()
             }
@@ -116,6 +116,19 @@ struct SettingsViews: View {
 
     private var workspaceBar: some View {
         VStack(spacing: 10) {
+            if voice.inputDestination == .currentFocus {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "cursorarrow.rays").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("当前光标所在输入框").font(.headline)
+                        Text("点击目标输入框再按住说话；只填入文字，不发送。原工作区草稿独立保留。")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("输入设置") { controls.page = .voiceInput }
+                }
+            } else {
             HStack(spacing: 12) {
                 Picker("草稿工作区", selection: Binding(get: { voice.workspaceID }, set: controls.selectWorkspace)) {
                     Text("未绑定草稿").tag(nil as UUID?)
@@ -144,6 +157,7 @@ struct SettingsViews: View {
             }
             if controls.workspace?.codexConversation != nil {
                 CodexSessionNavigationView(model: controls)
+            }
             }
         }.padding(14)
     }

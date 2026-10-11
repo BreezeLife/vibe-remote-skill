@@ -28,7 +28,7 @@ swiftc -swift-version 5 -target "$integration_target" \
     -framework AVFoundation -framework Speech -framework ApplicationServices -framework CoreAudio \
     -I "$integration_check_dir" -L "$integration_check_dir" -lVibeRemoteCore \
     -Xlinker -rpath -Xlinker "$integration_check_dir" \
-    "$integration_app/RemoteServices.swift" "$integration_app/RemoteModel.swift" \
+    "$integration_app/FocusedInputService.swift" "$integration_app/RemoteServices.swift" "$integration_app/RemoteModel.swift" \
     "$integration_app/SpeechService.swift" "$integration_app/BluetoothService.swift" \
     "$integration_app/NativeSettingsStore.swift" "$integration_app/HIDRemoteInputService.swift" \
     "$integration_app/ToolAdapter.swift" "$integration_app/SystemVolume.swift" \

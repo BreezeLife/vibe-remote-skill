@@ -30,7 +30,7 @@ swiftc -swift-version 5 -target "$model_target" \
     -framework AVFoundation -framework Speech \
     -I "$model_check_dir" -L "$model_check_dir" -lVibeRemoteCore \
     -Xlinker -rpath -Xlinker "$model_check_dir" \
-    "$model_app/RemoteServices.swift" "$model_app/RemoteModel.swift" \
+    "$model_app/FocusedInputService.swift" "$model_app/RemoteServices.swift" "$model_app/RemoteModel.swift" \
     "$model_app/SpeechService.swift" "$model_app/BluetoothService.swift" \
     "$model_check_dir/main.swift" -o "$model_check_dir/RemoteModelChecks"
 "$model_check_dir/RemoteModelChecks"

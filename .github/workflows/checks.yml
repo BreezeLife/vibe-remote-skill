@@ -41,6 +41,8 @@ jobs:
         run: bash scripts/test_macos_core.sh
       - name: Speech PCM and session checks
         run: bash scripts/test_macos_speech.sh
+      - name: Current-focus input checks
+        run: bash scripts/test_macos_focused_input.sh
       - name: Voice-key integration regressions
         run: bash scripts/test_macos_model.sh
       - name: Explicit virtual audio output checks

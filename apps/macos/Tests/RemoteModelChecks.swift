@@ -11,6 +11,7 @@ private final class FakeBluetooth: BluetoothServicing {
     var onStatus: ((String) -> Void)?
     var onReady: ((Bool) -> Void)?
     var onStream: ((Bool, Int) -> Void)?
+    var onCaptureInterrupted: ((String) -> Void)?
     var onSamples: (([Int16], Int) -> Void)?
     var onLevel: ((Double) -> Void)?
     private(set) var starts = 0
@@ -724,7 +725,167 @@ private func missingExternalServiceNeverFallsBack() {
     check(model.recognitionIssue != nil, "missing external route is visible")
 }
 
+private final class ModelInputReference: FocusedInputReference {
+    let id: Int
+    init(_ id: Int) { self.id = id }
+    func matches(_ other: FocusedInputReference) -> Bool { (other as? ModelInputReference)?.id == id }
+}
+private final class ModelInputDriver: FocusedInputDriver {
+    var isTrusted = true
+    var current = FocusedInputSnapshot(processID: 7, appName: "Fixture", window: ModelInputReference(1),
+        element: ModelInputReference(2), text: "before after", selection: NSRange(location: 7, length: 0))
+    var writes = 0
+    var uncertain = false
+    func snapshot() throws -> FocusedInputSnapshot { current }
+    func replaceSelectedText(_ text: String, in snapshot: FocusedInputSnapshot) throws {
+        writes += 1
+        current.text = (snapshot.text as NSString).replacingCharacters(in: snapshot.selection, with: text)
+        current.selection = NSRange(location: snapshot.selection.location + text.utf16.count, length: 0)
+        if uncertain { throw FocusedInputError.uncertain }
+    }
+}
+private func directFixture() -> (RemoteModel, FakeBluetooth, FakeSpeech, ModelInputDriver) {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: true), driver = ModelInputDriver()
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech, focusedInput: FocusedInputService(driver: driver))
+    model.replaceDraft("bound draft")
+    check(model.setInputDestination(.currentFocus), "enable direct mode while idle")
+    return (model, bluetooth, speech, driver)
+}
+private func directInputWaitsForReleaseAndPreservesWorkspace() {
+    let (model, bluetooth, speech, driver) = directFixture()
+    bluetooth.stream(true); speech.text("spoken"); speech.complete()
+    check(driver.writes == 0 && model.isBusy, "early final waits for physical release")
+    check(!model.setInputDestination(.draft), "cannot switch destination during hold")
+    bluetooth.stream(false); speech.complete(); bluetooth.stream(false)
+    check(driver.writes == 1 && driver.current.text == "before spokenafter", "one selected-text insertion")
+    check(model.directDraft.text.isEmpty && model.draft.text == "bound draft", "only delivered temporary utterance clears")
+    bluetooth.stream(true); speech.text(" next"); bluetooth.stream(false)
+    check(driver.writes == 1 && model.isBusy, "release alone waits for final recognition")
+    speech.complete()
+    check(driver.writes == 2 && driver.current.text == "before spoken nextafter", "next hold captures new caret")
+    check(model.message.contains("未发送"), "status describes insert only")
+}
+private func directFocusFailureRetainsTextWithoutRetry() {
+    let (model, bluetooth, speech, driver) = directFixture()
+    bluetooth.stream(true); speech.text("keep me"); driver.current.element = ModelInputReference(3)
+    bluetooth.stream(false); speech.complete()
+    check(driver.writes == 0 && model.directDraft.text == "keep me", "changed focus leaves pending text")
+    check(model.recognitionIssue != nil && model.canCopy, "failed direct result visible and copyable")
+    bluetooth.stream(true); speech.text("overwrite"); bluetooth.stream(false); speech.complete()
+    check(speech.startOptions.count == 1 && driver.writes == 0, "unhandled result blocks a second utterance")
+    model.replaceDraft("")
+    bluetooth.stream(true); speech.text("new"); bluetooth.stream(false); speech.complete()
+    check(driver.writes == 1 && model.draft.text == "bound draft", "explicit clear allows new utterance without changing workspace")
+}
+private func directUncertainWriteNeverRepeats() {
+    let (model, bluetooth, speech, driver) = directFixture(); driver.uncertain = true
+    bluetooth.stream(true); speech.text("once"); bluetooth.stream(false); speech.complete(); speech.complete()
+    check(driver.writes == 1 && model.directDraft.text == "once", "uncertain write retained and never repeated")
+    bluetooth.stream(true); bluetooth.stream(false)
+    check(driver.writes == 1 && speech.startOptions.count == 1, "new hold cannot retry uncertain text")
+}
+private func directCancellationAndErrorsNeverInsert() {
+    let (model, bluetooth, speech, driver) = directFixture()
+    bluetooth.stream(true); speech.text("cancel"); speech.complete(); model.cancelUtterance()
+    check(driver.writes == 0 && model.directDraft.text.isEmpty && model.draft.text == "bound draft", "cancel held final preserves workspace")
+    bluetooth.stream(true); speech.text("partial"); speech.complete(error: "fixture error"); bluetooth.stream(false)
+    check(driver.writes == 0 && model.directDraft.text == "partial", "recognition errors retain partial without insertion")
+    check(!model.appendExternalResult("duplicate"), "direct destination never appends external result")
+}
+private func directMissingFocusAndOverlappingHoldDoNotInsert() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: true)
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech)
+    _ = model.setInputDestination(.currentFocus)
+    bluetooth.stream(true); bluetooth.stream(false)
+    check(speech.startOptions.isEmpty && model.recognitionIssue != nil, "missing focus service blocks recognition start")
+    let (overlap, bt, sp, driver) = directFixture()
+    bt.stream(true); sp.text("previous"); bt.stream(false); bt.stream(true); sp.complete(); bt.stream(false)
+    check(driver.writes == 0 && overlap.directDraft.text == "previous", "overlapping hold retains previous text without late insertion")
+}
+
+private func directManualDisconnectAndStopPreserveText() {
+    for stop in [false, true] {
+        let (model, bluetooth, speech, driver) = directFixture()
+        bluetooth.stream(true); speech.text("partial interrupted")
+        if stop { model.stopCapture() } else { model.disconnect() }
+        speech.complete()
+        check(driver.writes == 0 && model.directDraft.text == "partial interrupted",
+              "manual \(stop ? "stop" : "disconnect") retains text without insertion")
+        check(model.recognitionIssue != nil && model.canCopy, "interrupted text remains available for manual review")
+    }
+}
+private func directTransportInterruptionPrecedesEarlyFinal() {
+    let (model, bluetooth, speech, driver) = directFixture()
+    bluetooth.stream(true); speech.text("early result"); speech.complete()
+    bluetooth.onCaptureInterrupted?("fixture interruption")
+    bluetooth.stream(false); bluetooth.onReady?(false); speech.complete()
+    check(driver.writes == 0 && model.directDraft.text == "early result", "interruption before stream-end prevents early-final insertion")
+    check(model.recognitionIssue?.contains("fixture interruption") == true, "original interruption remains visible")
+    model.replaceDraft("")
+    bluetooth.stream(true); speech.text("normal release"); bluetooth.stream(false); speech.complete()
+    check(driver.writes == 1, "next normal hold gets a fresh target after explicit clear")
+}
+private func directReadinessLossAndShutdownPreventInsertion() {
+    let (model, bluetooth, speech, driver) = directFixture()
+    bluetooth.stream(true); speech.text("readiness lost"); bluetooth.stream(false)
+    bluetooth.onReady?(false); speech.complete()
+    check(driver.writes == 0 && model.directDraft.text == "readiness lost", "readiness loss invalidates a finalizing target")
+    model.replaceDraft("")
+    bluetooth.stream(true); speech.text("shutdown"); speech.complete(); model.shutdown()
+    bluetooth.stream(false); speech.complete()
+    check(driver.writes == 0 && model.directDraft.text == "shutdown", "shutdown never inserts early-final text")
+}
+private func externalTransportInterruptionDoesNotFinishOrForward() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: false), external = FakeExternalInput()
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech, externalInput: external)
+    _ = model.setExternalInputEnabled(true)
+    bluetooth.stream(true); bluetooth.samples()
+    bluetooth.onCaptureInterrupted?("fixture interruption")
+    bluetooth.onCaptureInterrupted?("duplicate callback")
+    check(external.interruptions == 1, "duplicate interruption callbacks within one hold clean up once")
+    bluetooth.samples(); bluetooth.stream(false); bluetooth.onReady?(false)
+    check(external.interruptions >= 1, "external provider remains interrupted through readiness loss")
+    check(external.appends == 1 && external.finishes == 0, "interrupted provider neither forwards more frames nor ends toggle again")
+}
+private func externalPreparedAfterIdleInterruptionCanStillCancel() {
+    let bluetooth = FakeBluetooth(), speech = FakeSpeech(authorized: false), external = FakeExternalInput()
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech, externalInput: external)
+    _ = model.setExternalInputEnabled(true)
+    bluetooth.onReady?(false)
+    external.isBusy = true // The user prepares a provider without starting a remote hold.
+    let beforeCancel = external.interruptions
+    model.cancelUtterance()
+    check(external.interruptions == beforeCancel + 1, "idle connection callbacks cannot suppress later prepared-provider cancellation")
+    let beforeShutdown = external.interruptions
+    model.shutdown()
+    check(external.interruptions == beforeShutdown + 1, "shutdown still cleans up a busy provider outside a physical hold")
+}
+private func realServicePublishesInterruptionBeforeStreamEnd() {
+    let suite = "VibeRemote.InterruptionFixture.\(UUID())"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let service = BluetoothService(defaults: defaults)
+    var events: [String] = []
+    service.onCaptureInterrupted = { _ in events.append("interruption") }
+    service.onStream = { active, _ in if !active { events.append("end") } }
+    service.onReady = { ready in if !ready { events.append("notReady") } }
+    service.handleConnectionFailure(nil, remoteID: UUID(), fallbackStatus: "fixture reset",
+                                    cancel: false, allowReconnect: false)
+    check(events == ["interruption", "end", "notReady"], "real reset publishes interruption before ending audio")
+}
+
 private let cases: [(String, () -> Void)] = [
+    ("direct manual stop and disconnect", directManualDisconnectAndStopPreserveText),
+    ("direct interrupted early final", directTransportInterruptionPrecedesEarlyFinal),
+    ("direct readiness loss and shutdown", directReadinessLossAndShutdownPreventInsertion),
+    ("external transport interruption", externalTransportInterruptionDoesNotFinishOrForward),
+    ("external prepared cancellation after idle loss", externalPreparedAfterIdleInterruptionCanStillCancel),
+    ("real reset callback ordering", realServicePublishesInterruptionBeforeStreamEnd),
+    ("direct release and workspace isolation", directInputWaitsForReleaseAndPreservesWorkspace),
+    ("direct focus failure and recovery", directFocusFailureRetainsTextWithoutRetry),
+    ("direct uncertain write single attempt", directUncertainWriteNeverRepeats),
+    ("direct cancel and error guards", directCancellationAndErrorsNeverInsert),
+    ("direct missing focus and overlapping hold", directMissingFocusAndOverlappingHoldDoNotInsert),
     ("external provider isolation and draft locks", externalProviderOwnsOnlyItsCaptureAndLocksDestination),
     ("external provider missing route", missingExternalServiceNeverFallsBack),
     ("pairing loss recovery and preservation", pairingLossExplainsRecoveryAndPreservesSelection),

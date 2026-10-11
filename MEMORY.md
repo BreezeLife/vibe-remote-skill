@@ -274,3 +274,25 @@ experimental project APIs are not required by this milestone.
 - Doubao IME is found by com.bytedance.inputmethod.doubaoime in system/user Input Methods roots;
   the Doubao chat application is a different product. Other provider discovery is metadata-only,
   not publisher authentication. Third-party audio/history handling follows their own policies.
+
+
+## 2026-10-12 — follow current focus, without automatic submission
+
+- User explicitly confirmed “跟随当前焦点输入，不自动发送”. This supersedes the earlier same-day
+  requirement that every provider first output into Vibe Remote; preserve draft mode and old settings.
+- Input destination is independent of provider. Missing destination decodes as draft for compatibility;
+  the user selects currentFocus explicitly after upgrading. Do not silently move saved workspace text.
+- Capture the current field at physical voice-key start, not while pressing Prepare in our settings.
+  Built-in results replace only the captured selection after release/finalization and fresh identity,
+  text/selection checks. No clipboard fallback, whole-value replacement, key event or Enter.
+- Secure/read-only/unsupported inputs fail closed. Focus loss, capture interruption and uncertain writes
+  leave native text for review/copy; never automatically retry an attempted write or append stale text.
+- Third-party providers own direct insertion. Never take/import/reinsert their text in currentFocus mode.
+  Require confirmation of disabled provider auto-send in every trigger mode, including manual. This
+  is a user assertion, not observed provider state. No remote API can guarantee a third-party paste
+  location after focus changes; stop forwarding and ask the user to inspect the result.
+- Preparation must not activate our window or open the receiver sheet in direct mode. Provider-finished
+  confirmation is explicit; elapsed time/posted shortcuts do not prove completion. Each next hold
+  captures a fresh target, and bound draft insert/send/confirm actions are blocked in direct mode.
+- Native capture remains independent of HID mapping enablement. Real BLE readiness, HID enumeration,
+  actual presses, audio frames and successful transcription are separate acceptance observations.

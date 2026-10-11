@@ -5,6 +5,17 @@ import XCTest
 @testable import VibeRemoteCore
 
 final class VoiceInputConfigurationTests: XCTestCase {
+    func testCurrentFocusDestinationSurvivesStrictNativeRoundTrip() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(NativeSettings.defaults)) as? [String: Any])
+        object["voiceInput"] = ["provider": "appleSpeech", "destination": "currentFocus", "profiles": []]
+        let decoded = try JSONDecoder().decode(NativeSettings.self, from: JSONSerialization.data(withJSONObject: object))
+        try decoded.validate()
+        let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        let voice = try XCTUnwrap(encoded["voiceInput"] as? [String: Any])
+        XCTAssertEqual(voice["destination"] as? String, "currentFocus")
+        XCTAssertEqual(voice["provider"] as? String, "appleSpeech")
+    }
+
     func testExternalProviderConfigurationSurvivesNativeRoundTrip() throws {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(NativeSettings.defaults)) as? [String: Any])
         let voice: [String: Any] = ["provider": "typeless", "profiles": [
@@ -28,6 +39,42 @@ final class VoiceInputConfigurationTests: XCTestCase {
         let decoded = try JSONDecoder().decode(NativeSettings.self, from: encoded)
         XCTAssertNil(decoded.voiceInput)
         XCTAssertEqual((decoded.voiceInput ?? VoiceInputConfiguration()).provider, .appleSpeech)
+        XCTAssertEqual((decoded.voiceInput ?? VoiceInputConfiguration()).destination, .draft)
+        let oldProvider = try JSONDecoder().decode(VoiceInputConfiguration.self,
+                                                   from: Data(#"{"provider":"typeless","profiles":[]}"#.utf8))
+        XCTAssertEqual(oldProvider.destination, .draft)
+        XCTAssertEqual(VoiceInputConfiguration().destination, .draft)
+    }
+
+    func testDestinationRemainsIndependentWhenProviderOrProfileChanges() throws {
+        var config = VoiceInputConfiguration(provider: .appleSpeech, destination: .currentFocus)
+        config.provider = .typeless
+        config.setProfile(.init(provider: .typeless, shortcutNote: "manual"))
+        XCTAssertEqual(config.destination, .currentFocus)
+        config.provider = .doubaoIME
+        config.setProfile(.init(provider: .doubaoIME))
+        XCTAssertEqual(config.destination, .currentFocus)
+        let profiles = config.profiles
+        config.destination = .draft
+        XCTAssertEqual(config.provider, .doubaoIME)
+        XCTAssertEqual(config.profiles, profiles)
+        try config.validate()
+        XCTAssertEqual(try JSONDecoder().decode(VoiceInputConfiguration.self, from: JSONEncoder().encode(config)), config)
+        for destination in VoiceInputDestination.allCases {
+            XCTAssertFalse(destination.title.isEmpty)
+            XCTAssertEqual(destination.label, destination.title)
+        }
+    }
+
+    func testDestinationDecoderRejectsUnknownDestinationsAndPerProviderOverride() throws {
+        for value in ["autoSend", "clipboard", "currentWindow", ""] {
+            let data = Data("{\"provider\":\"typeless\",\"destination\":\"\(value)\",\"profiles\":[]}".utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(VoiceInputConfiguration.self, from: data))
+        }
+        XCTAssertThrowsError(try JSONDecoder().decode(VoiceInputProfile.self,
+                                                       from: Data(#"{"provider":"typeless","destination":"currentFocus"}"#.utf8)))
+        XCTAssertThrowsError(try JSONDecoder().decode(VoiceInputConfiguration.self,
+                                                       from: Data(#"{"provider":"typeless","destination":true}"#.utf8)))
     }
 
     func testAllPresetsRequireExplicitExternalShortcutSetup() throws {

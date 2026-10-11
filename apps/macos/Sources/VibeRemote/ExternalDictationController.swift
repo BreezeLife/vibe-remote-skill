@@ -64,6 +64,7 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
     @Published private(set) var status = "选择语音输入法并检查音频与快捷键。"
     @Published var resultText = ""
     @Published private(set) var profile: VoiceInputProfile?
+    @Published private(set) var destination: VoiceInputDestination = .draft
     var onChange: (() -> Void)?
     var receiverIsFocused: () -> Bool = { false }
     var isBusy: Bool { phase != .idle }
@@ -72,20 +73,24 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
     var devices: [RemoteAudioDevice] { audio.availableDevices() }
     private let audio: RemoteAudioOutputting
     private let hotkeys: DictationHotkeySending
+    private let focusedInput: FocusedInputServicing?
     private let monitorFocus: Bool
     private var focusTimer: Timer?
     private var generation = UUID()
+    private var focusedTarget: FocusedInputTarget?
 
     init(audio: RemoteAudioOutputting = RemoteAudioOutput(),
-         hotkeys: DictationHotkeySending = DictationHotkeys(), monitorFocus: Bool = true) {
-        self.audio = audio; self.hotkeys = hotkeys; self.monitorFocus = monitorFocus
+         hotkeys: DictationHotkeySending = DictationHotkeys(), focusedInput: FocusedInputServicing? = nil,
+         monitorFocus: Bool = true) {
+        self.audio = audio; self.hotkeys = hotkeys; self.focusedInput = focusedInput; self.monitorFocus = monitorFocus
         audio.onError = { [weak self] error in
             guard let self, self.phase == .capturing else { return }
             self.fail(error.localizedDescription)
         }
     }
 
-    func prepare(_ profile: VoiceInputProfile, microphoneConfirmed: Bool, shortcutConfirmed: Bool) throws {
+    func prepare(_ profile: VoiceInputProfile, destination: VoiceInputDestination = .draft,
+                 microphoneConfirmed: Bool, shortcutConfirmed: Bool, autoSendDisabled: Bool = false) throws {
         guard !isBusy else { throw ExternalDictationError.message("请先处理当前接收框。") }
         try profile.validate()
         guard profile.provider != .appleSpeech, microphoneConfirmed,
@@ -95,12 +100,23 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
         guard profile.triggerMode == .manual || (shortcutConfirmed && hotkeys.isAuthorized) else {
             throw ExternalDictationError.message("请检查输入法快捷键并授权辅助功能；也可使用手动模式。")
         }
+        guard destination != .currentFocus || (autoSendDisabled && focusedInput != nil) else {
+            throw ExternalDictationError.message("直接输入前，请确认输入法已关闭自动发送，并启用当前输入框检查。")
+        }
         self.profile = profile
+        self.destination = destination
         generation = UUID()
+        focusedTarget = nil
         resultText = ""
-        status = profile.triggerMode == .manual
-            ? "接收框准备好后，请用输入法自己的快捷键开始识别，再按住遥控器说话；松开后手动结束输入法。"
-            : "按住遥控器说话。输入法快捷键只尝试启动/结束识别，实际状态以输入法提示为准。"
+        if destination == .currentFocus {
+            status = profile.triggerMode == .manual
+                ? "请点击要输入的文本框，用输入法自己的快捷键开始识别，再按住遥控器说话。松开后手动结束输入法；文字由输入法直接填入。"
+                : "请点击要输入的文本框，再按住遥控器说话。文字由输入法直接填入；Vibe Remote 不执行发送。"
+        } else {
+            status = profile.triggerMode == .manual
+                ? "接收框准备好后，请用输入法自己的快捷键开始识别，再按住遥控器说话；松开后手动结束输入法。"
+                : "按住遥控器说话。输入法快捷键只尝试启动/结束识别，实际状态以输入法提示为准。"
+        }
         phase = .prepared
     }
 
@@ -109,13 +125,26 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
             if phase == .idle { status = "请先在「语音输入」点击「准备第三方听写」。" }
             return
         }
-        guard receiverIsFocused() else {
+        if destination == .currentFocus {
+            do {
+                guard let focusedInput else { throw ExternalDictationError.message("当前输入框检查不可用。") }
+                // Preparation happens in our UI; bind only when the remote starts this hold.
+                focusedTarget = try focusedInput.capture()
+            } catch {
+                status = "\(error.localizedDescription) 本次未转交音频；请确认输入法已停止后重新准备。"
+                phase = .review
+                return
+            }
+        }
+        guard inputIsFocused else {
             status = "接收框未聚焦；本次没有转交音频或启动输入法。请确认输入法已结束后重新准备。"
+            if destination == .currentFocus { status = "输入位置已变化；本次未转交音频或启动输入法。请确认输入法已停止后重新准备。" }
             phase = .review
             return
         }
         do {
             try audio.start(deviceUID: uid, sampleRate: sampleRate)
+            guard inputIsFocused else { throw ExternalDictationError.message("输入位置已变化；请确认输入法已停止后重新准备。") }
             if profile.triggerMode != .manual { try hotkeys.begin(profile) }
             phase = .capturing
             status = "正在向选定的虚拟麦克风转交遥控器音频；请检查输入法的录音指示。"
@@ -142,16 +171,22 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
             switch outcome {
             case .failure(let error): self.fail(error.localizedDescription)
             case .success:
-                guard self.receiverIsFocused() else {
-                    self.fail("接收框失去焦点；请在输入法中手动结束，避免文字落到其他窗口。")
+                guard self.inputIsFocused else {
+                    self.fail("输入框失去焦点；请在输入法中手动结束，并检查文字是否落到其他窗口。")
                     return
                 }
                 do {
                     if profile.triggerMode != .manual { try self.hotkeys.end(profile) }
                     self.focusTimer?.invalidate(); self.focusTimer = nil
-                    self.status = profile.triggerMode == .manual
-                        ? "音频已转交。请手动结束输入法，等文字落入下方接收框，再确认加入草稿。"
-                        : "音频已转交，已尝试结束快捷键。等待文字出现并确认输入法已停止，再加入草稿。"
+                    if self.destination == .currentFocus {
+                        self.status = profile.triggerMode == .manual
+                            ? "音频已转交。请手动结束输入法，等待文字填入原输入框，再确认本段结束；不会重复填入或发送。"
+                            : "音频已转交，已尝试结束快捷键。请检查原输入框，确认输入法已停止且文字完整后继续；不会重复填入或发送。"
+                    } else {
+                        self.status = profile.triggerMode == .manual
+                            ? "音频已转交。请手动结束输入法，等文字落入下方接收框，再确认加入草稿。"
+                            : "音频已转交，已尝试结束快捷键。等待文字出现并确认输入法已停止，再加入草稿。"
+                    }
                     self.phase = .review
                 } catch { self.fail(error.localizedDescription) }
             }
@@ -160,20 +195,34 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
 
     func checkFocus() {
         guard phase == .capturing || phase == .draining else { return }
-        if !receiverIsFocused() { fail("接收框失去焦点，已停止音频转交。请手动结束输入法，再检查文字。") }
+        if !inputIsFocused { fail("输入框失去焦点，已停止音频转交。请手动结束输入法，并检查文字是否落到其他位置。") }
     }
 
     func interrupt() {
         guard isBusy else { return }
-        fail("音频转交已中断。请在输入法中手动停止，并检查接收框；原工作区草稿保持不变。")
+        fail(destination == .currentFocus
+             ? "音频转交已中断。请在输入法中手动停止，并检查当前输入框；已由输入法填入的文字不会被撤回。"
+             : "音频转交已中断。请在输入法中手动停止，并检查接收框；原工作区草稿保持不变。")
     }
 
     func takeResult(providerFinished: Bool) -> String? {
-        guard phase == .review, providerFinished,
+        guard destination == .draft, phase == .review, providerFinished,
               !resultText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let text = resultText
         reset()
         return text
+    }
+
+    /// A provider may have inserted text itself. Never import or write it a second time.
+    @discardableResult
+    func completeDirect(providerFinished: Bool) -> Bool {
+        guard destination == .currentFocus, phase == .review, providerFinished, profile != nil else { return false }
+        generation = UUID()
+        focusedTarget = nil
+        resultText = ""
+        status = "本段已结束。请点击下一处输入框，再按住遥控器说话；配置仍保持准备状态。"
+        phase = .prepared
+        return true
     }
     @discardableResult
     func discard(providerFinished: Bool) -> Bool {
@@ -193,8 +242,14 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
     private func reset() {
         generation = UUID()
         focusTimer?.invalidate(); focusTimer = nil
-        resultText = ""; profile = nil
+        resultText = ""; profile = nil; focusedTarget = nil
         phase = .idle
+    }
+    private var inputIsFocused: Bool {
+        if destination == .draft { return receiverIsFocused() }
+        guard let focusedInput, let focusedTarget else { return false }
+        // Providers can insert interim text; only target identity must stay stable.
+        return focusedInput.isCurrent(focusedTarget, requireUnchangedText: false)
     }
     deinit { focusTimer?.invalidate(); audio.cancel(); hotkeys.releaseHeldKey() }
 }

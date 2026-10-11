@@ -35,19 +35,32 @@ public enum VoiceInputProvider: String, Codable, CaseIterable, Identifiable {
         case .appleSpeech:
             return "直接识别遥控器音频；默认要求本地识别，可单独启用 Apple 在线识别。"
         case .typeless:
-            return "在 Typeless 设置中选择麦克风并核对 Dictate 快捷键；将输入位置保持在 Vibe Remote 接收框。"
+            return "在 Typeless 设置中选择麦克风并核对 Dictate 快捷键；开始前将光标放在选定的输入位置。"
         case .doubaoIME:
             return "在豆包输入法中核对语音触发方式与麦克风选择；豆包聊天应用不等同于豆包输入法。"
         case .wisprFlow:
             return "Flow 支持按住说话和免提模式；请核对使用的模式、快捷键和麦克风，并关闭自动发送。"
         case .superwhisper:
-            return "在 Superwhisper 中选择听写模式、麦克风和快捷键；输出保留在 Vibe Remote，关闭自动发送。"
+            return "在 Superwhisper 中选择听写模式、麦克风和快捷键，并关闭自动发送。"
         case .macOSDictation:
-            return "在系统设置的键盘页面启用听写，核对麦克风与快捷键；听写结果先进入 Vibe Remote。"
+            return "在系统设置的键盘页面启用听写，核对麦克风与快捷键；开始前将光标放在选定的输入位置。"
         case .custom:
             return "适用于向当前文本框输入文字的语音工具；手动核对麦克风与触发方式，并关闭自动发送。"
         }
     }
+}
+
+/// Destination is independent of the provider. Legacy settings retain draft review.
+public enum VoiceInputDestination: String, Codable, CaseIterable, Identifiable {
+    case draft, currentFocus
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .draft: return "先进入 Vibe Remote 草稿"
+        case .currentFocus: return "当前光标所在输入框"
+        }
+    }
+    public var label: String { title }
 }
 
 public enum VoiceTriggerMode: String, Codable, CaseIterable, Identifiable {
@@ -130,9 +143,11 @@ public struct VoiceInputProfile: Codable, Equatable {
 
 public struct VoiceInputConfiguration: Codable, Equatable {
     public var provider: VoiceInputProvider
+    public var destination: VoiceInputDestination
     public var profiles: [VoiceInputProfile]
-    public init(provider: VoiceInputProvider = .appleSpeech, profiles: [VoiceInputProfile] = []) {
-        self.provider = provider; self.profiles = profiles
+    public init(provider: VoiceInputProvider = .appleSpeech, destination: VoiceInputDestination = .draft,
+                profiles: [VoiceInputProfile] = []) {
+        self.provider = provider; self.destination = destination; self.profiles = profiles
     }
     public func profile(for provider: VoiceInputProvider) -> VoiceInputProfile {
         profiles.first { $0.provider == provider } ?? VoiceInputProfile(provider: provider)
@@ -192,10 +207,11 @@ extension VoiceInputProfile {
 }
 
 extension VoiceInputConfiguration {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case provider, profiles }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case provider, destination, profiles }
     public init(from decoder: Decoder) throws {
         let values = try voiceStrictContainer(decoder, CodingKeys.self)
         self.init(provider: try values.decodeIfPresent(VoiceInputProvider.self, forKey: .provider) ?? .appleSpeech,
+                  destination: try values.decodeIfPresent(VoiceInputDestination.self, forKey: .destination) ?? .draft,
                   profiles: try values.decodeIfPresent([VoiceInputProfile].self, forKey: .profiles) ?? [])
     }
 }

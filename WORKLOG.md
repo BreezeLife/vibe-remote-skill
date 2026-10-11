@@ -708,3 +708,59 @@ Implementation committed and pushed as `6cf811a` to origin/main. The code/config
 clean apart from pre-existing untracked STATUS.md and .project-pulse, which were left untouched.
 GitHub checks were triggered; no hosted success for this revision is claimed yet. No response to
 the current draft-safety question had arrived, so the running installed app was not closed.
+
+
+## 2026-10-12 — current-focus input and bounded hardware observation (0.2.9)
+
+User changed the earlier draft-first preference and explicitly confirmed following the current
+focus without auto-send. Added a provider-independent destination with legacy draft default.
+Native direct input captures the actual field at physical hold, waits for release/final text,
+then makes one selected-text AX replacement after rechecking field/window/process, full value
+and UTF-16 selection. It never posts Enter, overwrites a whole field, uses clipboard fallback,
+or copies bound workspace text into the direct buffer. Unsupported/changed/uncertain targets
+retain text for explicit inspection/copy/clear. Secure/read-only fields fail before value use.
+
+External direct mode captures at hold rather than Prepare; no own receiver sheet or window
+activation. The provider places text itself, so the app cannot take/import/reinsert it.
+Manual/hold/toggle all require explicit confirmation that provider auto-send is disabled.
+Completion remains user-observed; menu/inline confirmation prepares the next hold with a fresh
+target. Focus/route loss stops forwarding and releases held keys, without retrying toggle state.
+Provider paste behavior after focus loss is outside our control and is explained in the guide.
+Bound workspace insert/send/confirm actions are blocked while direct mode is selected.
+
+Observed regressions: overlapping native holds initially failed 1 of 205 assertions (31 scenarios),
+then passed after retaining text whenever finalization had an issue. Independent review reproduced
+unsafe insertion after interruption; explicit transport interruption now runs before audio-end
+callbacks for manual stop/watchdog/reset, and model disconnect/readiness loss/shutdown invalidate
+targets. Added regression suite first failed 12 of 221 assertions (36 scenarios), then passed.
+Final review found stale external interruption deduplication after preparing again: red 37 scenarios /
+224 assertions / 2 failures, then green 37/224/0 with dedupe limited to the same active hold.
+Focused service tests started with a red implementation stub and finish at 64 assertions passed.
+
+Final checks: core83; model37/224; controls integration63/211; focused64; external48; audio46;
+speech42; HID48; tools307; settings15; catalog27; provider discovery21; Python30 and neutral
+configuration validation all passed. Real app release and final package builds passed. Fake-only
+UI renders at 740 pt cover settings, prepared external input, review and native retained text;
+no clipping observed. Initial UI fixture compilation overlapped a source edit; recompiling an
+isolated source snapshot passed. No real AX read/write, target activation or key injection was
+used in these fixtures. Existing Codex computer-use denial was not bypassed.
+
+With the user's hardware-test authorization, the installed system 0.2.7 reached actual ATVV
+readiness at 16 kHz after Connect. System metadata showed a connected BLE Xiaomi remote and
+its expected keyboard HID interface. Apple Speech in the app was not authorized; mappings
+were paused. An exact remote-only, nonexclusive 60-second HID observation had granted input
+monitoring and opened one device, but received zero events; it closed cleanly. No physical
+key values, audio delivery or transcription are marked verified. Doubao IME and MiRemoteV 2ch
+were already installed; no bridge app was running, no audio defaults/permissions were changed,
+and no device identifier, transcript or raw audio was stored in project files. The UI tool
+subsequently failed with a native pipe-closed error; it was not replaced by alternate GUI automation.
+
+Packaged 0.2.9/build12 at ~/Downloads/VibeRemote-0.2.9-System-20261012/
+VibeRemote-0.2.9-arm64.pkg (3,486,091 bytes); SHA-256 6388ce473e2b9b6f0a268d739947cf4e9063f18855a2f903cd9b33edcdddeae5.
+Independent expansion verifies LocalSystem only, /Applications, no relocation, canonical icon,
+bundle identity/version and strict app signature. The verifier initially read relocatable on the
+bundle child rather than pkg-info; corrected the checker and all assertions passed. The app is
+ad-hoc signed, package unsigned/unnotarized. Installed/running remains system 0.2.7 with no
+~/Applications copy. Asked for current draft safety before exit/update; no response yet.
+Previous GitHub runs for 6cf811a and 90f044a succeeded; synchronization of this revision follows.
+Unrelated STATUS.md and .project-pulse/ remain untouched.

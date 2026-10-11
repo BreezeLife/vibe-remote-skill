@@ -9,7 +9,9 @@ struct RemoteView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Vibe Remote").font(.largeTitle.weight(.semibold))
-                    Text("按住说话 · 松开成稿 · 确认后使用")
+                    Text(model.inputDestination == .currentFocus
+                         ? "点击输入框 · 按住说话 · 松开填入，不发送"
+                         : "按住说话 · 松开成稿 · 确认后使用")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -43,8 +45,11 @@ struct RemoteView: View {
             }
 
             if model.usesExternalInput {
-                Label("已选择第三方语音输入。请在侧栏「语音输入」准备接收框；确认后文字会追加到这里。", systemImage: "mic.badge.plus")
+                Label(model.inputDestination == .currentFocus
+                      ? "已选择第三方输入到当前输入框。请在「语音输入」准备后点击目标输入框；文字由输入法直接填入。确认输入法完成后，从菜单栏准备下一段。"
+                      : "已选择第三方语音输入。请在侧栏「语音输入」准备接收框；确认后文字会追加到这里。", systemImage: "mic.badge.plus")
                     .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -67,22 +72,30 @@ struct RemoteView: View {
             }
             }
 
+            if model.inputDestination == .currentFocus && !model.usesExternalInput {
+                Label("先点击目标应用的可编辑输入框再说话，并保持焦点。无法填入时，本段文字留在下方；先检查目标是否已有文字，再复制或清空，避免重复。", systemImage: "cursorarrow.rays")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if model.inputDestination == .draft || !model.usesExternalInput || !model.directDraft.text.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("草稿").font(.headline)
+                    Text(model.inputDestination == .currentFocus ? "保留的本段文字" : "草稿").font(.headline)
                     Spacer()
                     Text("仅保留在内存中，退出前请复制")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                TextEditor(text: Binding(get: { model.draft.text }, set: { model.replaceDraft($0) }))
+                TextEditor(text: Binding(get: { model.displayedDraft.text }, set: { model.replaceDraft($0) }))
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .background(.background, in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
                     .disabled(model.isBusy || editsLocked)
-                    .accessibilityLabel("听写草稿")
+                    .accessibilityLabel(model.inputDestination == .currentFocus ? "保留的本段文字" : "听写草稿")
                     .frame(minHeight: 150)
+            }
             }
 
             HStack {
@@ -90,18 +103,25 @@ struct RemoteView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 16)
                 if model.isBusy {
-                    if model.draft.isBusy {
+                    if model.displayedDraft.isBusy {
                         Button("取消本段", action: model.cancelUtterance)
                     }
                     Button("结束收音", action: model.stopCapture)
                         .disabled(!model.isReceivingAudio)
                 } else {
-                    Button("复制草稿", action: model.copyDraft)
+                    if model.inputDestination == .currentFocus && !model.displayedDraft.text.isEmpty {
+                        Button("已核对目标，清空本段") { model.replaceDraft("") }
+                            .disabled(editsLocked)
+                    }
+                    Button(model.inputDestination == .currentFocus ? "复制保留文字" : "复制草稿", action: model.copyDraft)
                         .buttonStyle(.borderedProminent).disabled(!model.canCopy)
                 }
             }.frame(minHeight: 44)
-            Text("草稿按工作区分别保留。使用顶部按钮插入和预览发送；语音键不会自动发送。")
+            Text(model.inputDestination == .currentFocus
+                 ? "当前输入框模式无需绑定工作区；不会按回车或自动发送。原工作区草稿独立保留，可在「语音输入」切回草稿模式查看。"
+                 : "草稿按工作区分别保留。使用顶部按钮插入和预览发送；语音键不会自动发送。")
                 .font(.caption).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(28)
         .frame(minWidth: 700, minHeight: 610)

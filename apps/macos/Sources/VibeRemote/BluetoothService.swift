@@ -14,6 +14,7 @@ final class BluetoothService: NSObject {
     var onStatus: ((String) -> Void)?
     var onReady: ((Bool) -> Void)?
     var onStream: ((Bool, Int) -> Void)?
+    var onCaptureInterrupted: ((String) -> Void)?
     var onSamples: (([Int16], Int) -> Void)?
     /// RMS level in dBFS, clamped to -60...0; silence is -60.
     var onLevel: ((Double) -> Void)?
@@ -235,6 +236,7 @@ final class BluetoothService: NSObject {
         pendingStopReason = reason
         reconnectPolicy.suspend()
         manualStopGate.requestStop()
+        onCaptureInterrupted?(reason)
         guard sendCloseCommand() else { return }
         finishAudio()
         onStatus?("\(reason)；正在关闭遥控器采音…")
@@ -606,6 +608,7 @@ final class BluetoothService: NSObject {
         ready = false
         manualStopGate = ManualStopGate()
         pendingStopReason = nil
+        onCaptureInterrupted?(status)
         finishAudio()
         let previous = peripheral
         peripheral = nil

@@ -8,16 +8,37 @@ struct VoiceInputSettingsView: View {
     @ObservedObject var voice: RemoteModel
     @ObservedObject var external: ExternalDictationController
     @State private var selected = VoiceInputProvider.appleSpeech
+    @State private var destination = VoiceInputDestination.draft
     @State private var profile = VoiceInputProfile(provider: .typeless)
     @State private var devices: [RemoteAudioDevice] = []
     @State private var installed: VoiceProviderAppInfo?
     @State private var microphoneConfirmed = false
     @State private var shortcutConfirmed = false
+    @State private var autoSendDisabled = false
     @State private var status = "配置会保存在本机；保存不会启动输入法或开始录音。"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            SettingsHeading(title: "语音输入", detail: "选择识别工具。第三方文字先进入 Vibe Remote 接收框，确认后追加到当前工作区草稿。")
+            SettingsHeading(title: "语音输入", detail: "选择识别工具和文字输入位置。可以先保留草稿，也可以直接填入当前光标所在的输入框。")
+            if external.isBusy && external.destination == .currentFocus {
+                ExternalDirectStatusView(external: external, voice: voice)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("文字输入位置", selection: $destination) {
+                    ForEach(VoiceInputDestination.allCases) { value in Text(value.title).tag(value) }
+                }.frame(maxWidth: 520)
+                Text(destination == .draft
+                     ? "先检查 Vibe Remote 草稿，再决定插入和发送；保留原有工作区流程。"
+                     : "保存后，点击目标输入框再按住遥控器。文字填到开始说话时的输入位置，不按回车、不自动发送；原工作区草稿独立保留。")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if destination == .currentFocus && !controls.accessibilityGranted {
+                    Label("确认当前输入位置需要辅助功能权限，请在「连接与权限」启用。", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+            }.disabled(!controls.canEdit)
+                .onChange(of: destination) { _ in
+                    microphoneConfirmed = false; shortcutConfirmed = false; autoSendDisabled = false
+                }
             Picker("语音识别工具", selection: $selected) {
                 ForEach(VoiceInputProvider.allCases) { provider in Text(provider.title).tag(provider) }
             }.frame(maxWidth: 420).disabled(!controls.canEdit)
@@ -27,6 +48,10 @@ struct VoiceInputSettingsView: View {
                 GroupBox("内置识别") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("直接识别遥控器音频，不需要第三方输入法或虚拟麦克风。识别语言与在线选项仍在「听写」页设置。")
+                        if destination == .currentFocus {
+                            Text("先点击目标应用的可编辑输入框，再按住说话。松开并识别结束后尝试填入；焦点变化或不支持时，在「听写」页保留本段文字供复制，不会自动重试。")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Button("使用内置 Apple 识别") { save() }.disabled(!controls.canEdit)
                     }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -36,28 +61,38 @@ struct VoiceInputSettingsView: View {
                 shortcutSection
                 GroupBox("准备与测试") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("1. 先在输入法中选好上面的麦克风，并关闭其自动发送功能。\n2. 准备接收框。手动模式先启动输入法录音，再按住遥控器说话；自动模式直接按住。\n3. 松开后结束输入法，等文字出现，确认识别完成再加入工作区草稿。")
+                        Text(destination == .draft
+                             ? "1. 先在输入法中选好上面的麦克风，并关闭其自动发送功能。\n2. 准备接收框。手动模式先启动输入法录音，再按住遥控器说话；自动模式直接按住。\n3. 松开后结束输入法，等文字出现，确认识别完成再加入工作区草稿。"
+                             : "1. 在输入法中选好上面的麦克风，并关闭自动发送。\n2. 准备听写后，点击目标应用的输入框；手动模式先启动输入法录音，再按住遥控器说话。\n3. 保持目标输入框，等待输入法填入文字。确认输入法结束后，通过菜单栏或此页准备下一段。")
                             .fixedSize(horizontal: false, vertical: true)
                         Toggle("已在输入法中选择同一虚拟麦克风", isOn: $microphoneConfirmed)
                         if profile.triggerMode != .manual {
                             Toggle("已设置相同快捷键和触发方式，并关闭输入法自动发送", isOn: $shortcutConfirmed)
+                        }
+                        if destination == .currentFocus {
+                            Toggle("已在输入法中关闭自动发送（手动触发也需要）", isOn: $autoSendDisabled)
                         }
                         HStack {
                             Button("保存配置") { save() }.disabled(!controls.canEdit)
                             Button("准备第三方听写") { prepare() }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(!controls.canEdit || !voice.ready || !microphoneConfirmed || profile.outputDeviceUID == nil ||
-                                          (profile.triggerMode != .manual && !shortcutConfirmed))
+                                          (profile.triggerMode != .manual && !shortcutConfirmed) ||
+                                          (destination == .currentFocus && !autoSendDisabled))
                         }
                         if !voice.ready { Text("遥控器语音通道就绪后才能开始测试；现在可以先保存配置。") }
                         Text("这些确认仅用于本次准备；不代表正在录音或已通过实测。第三方工具可能联网处理并保存音频/文字，以其设置为准。")
                             .font(.caption).foregroundStyle(.secondary)
-                    }.padding(8)
+                    }.padding(8).disabled(!controls.canEdit)
                 }
             }
             Text(status).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
         }.padding(28)
-            .onAppear { selected = controls.settings.voiceInput?.provider ?? .appleSpeech; loadSelection() }
+            .onAppear {
+                selected = controls.settings.voiceInput?.provider ?? .appleSpeech
+                destination = controls.settings.voiceInput?.destination ?? .draft
+                loadSelection()
+            }
             .onChange(of: selected) { _ in loadSelection() }
     }
 
@@ -154,28 +189,32 @@ struct VoiceInputSettingsView: View {
     private func refresh() {
         devices = external.devices
         let found = VoiceProviderApps.discover(selected, configuredPath: profile.appPath)
-        if found != installed { microphoneConfirmed = false; shortcutConfirmed = false }
+        if found != installed { microphoneConfirmed = false; shortcutConfirmed = false; autoSendDisabled = false }
         installed = found
     }
     private func loadSelection() {
         profile = (controls.settings.voiceInput ?? VoiceInputConfiguration()).profile(for: selected)
-        microphoneConfirmed = false; shortcutConfirmed = false
+        microphoneConfirmed = false; shortcutConfirmed = false; autoSendDisabled = false
         refresh()
     }
     @discardableResult
     private func save() -> Bool {
         var config = controls.settings.voiceInput ?? VoiceInputConfiguration()
         config.provider = selected
+        config.destination = destination
         if selected.isExternal { config.setProfile(profile) }
         let saved = controls.updateSettings { $0.voiceInput = config }
-        status = saved ? "已保存 \(selected.title)。输入法设置仍需在对应应用中核对。" : controls.statusText
+        status = saved ? "已保存 \(selected.title) · \(destination.title)。输入法设置仍需在对应应用中核对。" : controls.statusText
         return saved
     }
     private func prepare() {
         guard controls.canEdit, voice.ready, save() else { return }
-        do { try external.prepare(profile, microphoneConfirmed: microphoneConfirmed, shortcutConfirmed: shortcutConfirmed) }
+        do {
+            try external.prepare(profile, destination: destination, microphoneConfirmed: microphoneConfirmed,
+                                 shortcutConfirmed: shortcutConfirmed, autoSendDisabled: autoSendDisabled)
+        }
         catch { status = error.localizedDescription }
-        microphoneConfirmed = false; shortcutConfirmed = false
+        microphoneConfirmed = false; shortcutConfirmed = false; autoSendDisabled = false
     }
     private func chooseApp() {
         let panel = NSOpenPanel()
@@ -185,8 +224,42 @@ struct VoiceInputSettingsView: View {
             status = "未选择对应输入法应用；请核对 .app 类型。"; return
         }
         profile.appPath = info.path; profile.bundleIdentifier = info.bundleIdentifier
-        microphoneConfirmed = false; shortcutConfirmed = false
+        microphoneConfirmed = false; shortcutConfirmed = false; autoSendDisabled = false
         installed = info
+    }
+}
+
+/// Direct providers insert their own text. This view only settles their observed
+/// completion; it must never import or insert that text a second time.
+struct ExternalDirectStatusView: View {
+    @ObservedObject var external: ExternalDictationController
+    @ObservedObject var voice: RemoteModel
+    @State private var providerFinished = false
+
+    var body: some View {
+        GroupBox("当前输入框听写") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(external.status).fixedSize(horizontal: false, vertical: true)
+                Text("文字由输入法直接填入目标；Vibe Remote 不会再次插入。请等输入法完成后再切换输入位置。")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Toggle("我已确认输入法停止录音、识别完成", isOn: $providerFinished)
+                    .disabled(!external.canSettle || voice.isReceivingAudio)
+                HStack {
+                    if voice.isReceivingAudio || !external.canSettle {
+                        Button("中断并检查") { external.interrupt(); voice.stopCapture() }
+                    }
+                    Button("结束本次准备") { _ = external.discard(providerFinished: providerFinished) }
+                        .disabled(!external.canSettle || voice.isReceivingAudio || !providerFinished)
+                    Spacer()
+                    Button("准备下一段") { _ = external.completeDirect(providerFinished: providerFinished) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(external.phase != .review || voice.isReceivingAudio || !providerFinished)
+                }
+                Text("也可从菜单栏确认输入法已结束并准备下一段；不会切换或激活目标应用。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onChange(of: external.phase) { _ in providerFinished = false }
     }
 }
 

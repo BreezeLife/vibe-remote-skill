@@ -50,6 +50,12 @@ or paired taps. A dedicated in-memory receiver locks the workspace until the use
 provider finished, then appends its text to the existing draft without submitting. Missing routes,
 focus loss and uncertain provider state never fall back to another microphone or automatic send.
 Third-party permissions, microphone selection and physical transcription still need acceptance.
+Version 0.2.9 adds an independent current-focus destination, explicitly requested by the user.
+Each physical hold captures the current editable field without requiring a workspace binding.
+Built-in recognition inserts its final utterance through a single guarded selected-text replacement;
+changed targets, interruption or uncertain writes retain text for manual recovery. Third-party
+providers place their own text and require explicit completion before another hold. Neither path
+submits, presses Enter, or repeats provider output. Older configurations retain draft mode.
 Developing and distributing our own virtual microphone driver remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.
@@ -59,13 +65,16 @@ not install or start the native application.
 
 ## Product principles
 
-The intended complete loop is: choose a workspace, hold to dictate, release into an
+For the original draft mode, the intended loop is: choose a workspace, hold to dictate, release into an
 unsent draft, inspect the destination and text, explicitly send, then read output or
 open a preview. Keep button intentions consistent across APP and CLI adapters.
 Browser focus must not redefine the bound AI destination. Unknown focus/recording
 state and shell prompts block automatic submission. The native app requires
 explicit insertion and full-text send confirmation, plus live workspace and device checks.
 Unsupported AX capabilities preserve the draft for explicit manual copying.
+In current-focus mode, voice input needs no bound workspace: click the desired input, hold and
+release, and inspect the inserted text. Bound draft insertion/submission actions are disabled in
+this mode. Current focus is an input destination only, never authorization to send or run commands.
 
 Distinguish implemented behavior, installed artifacts, current connection state and
 physical acceptance. A paired device or saved UUID does not prove a working audio
@@ -84,7 +93,7 @@ Run `bash scripts/test_macos_core.sh`, `bash scripts/test_macos_speech.sh`,
 `bash scripts/test_macos_tools.sh`, `bash scripts/test_macos_controls.sh`,
 `bash scripts/test_macos_catalog.sh`, `bash scripts/test_macos_integration.sh`
 `bash scripts/test_macos_audio_output.sh`, `bash scripts/test_macos_external_dictation.sh`,
-`bash scripts/test_macos_provider_apps.sh` and `bash scripts/build_macos_app.sh`.
+`bash scripts/test_macos_provider_apps.sh`, `bash scripts/test_macos_focused_input.sh` and `bash scripts/build_macos_app.sh`.
 Normal builds output to ~/Library/Caches/VibeRemote/Build without writing to system
 application directories. `bash scripts/package_macos_app.sh` stages the app in a local
 temporary directory and produces a `.pkg` plus SHA-256 file. From 0.2.2, the package uses
