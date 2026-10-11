@@ -469,11 +469,14 @@ import VibeRemoteCore
     }
     do {
         let (d, _, w, conversation) = codexFixture()
-        let a = ToolAdapter(driver: d, navigationTimeout: 0.1)
+        // Use the production observation budget; success must not depend on CI load.
+        let a = ToolAdapter(driver: d, navigationTimeout: 2)
         d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
         var snapshots = 0
         d.snapshotHook = {
             snapshots += 1
+            // A loaded runner may spend longer than 100 ms on the first observation.
+            if snapshots == 1 { Thread.sleep(forTimeInterval: 0.15) }
             if snapshots == 2 { d.windows[0].url = conversation.canonicalURL.absoluteString }
         }
         _ = try await a.openCodexConversation(w, knownConversations: [conversation])

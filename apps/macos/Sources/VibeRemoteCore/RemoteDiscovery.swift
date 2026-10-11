@@ -35,11 +35,14 @@ public struct RemoteDiscoveryState: Equatable {
     public var connectedID: UUID?
     public var rememberedID: UUID?
     public var autoReconnectEnabled: Bool
+    /// Observed bond loss for one device; not persisted and not repaired by scanning.
+    public var pairingRequiredID: UUID?
 
     public init(devices: [NearbyRemote] = [], isScanning: Bool = false, connectingID: UUID? = nil,
-                connectedID: UUID? = nil, rememberedID: UUID? = nil, autoReconnectEnabled: Bool = true) {
+                connectedID: UUID? = nil, rememberedID: UUID? = nil, autoReconnectEnabled: Bool = true, pairingRequiredID: UUID? = nil) {
         self.devices = devices; self.isScanning = isScanning; self.connectingID = connectingID
         self.connectedID = connectedID; self.rememberedID = rememberedID; self.autoReconnectEnabled = autoReconnectEnabled
+        self.pairingRequiredID = pairingRequiredID
     }
 }
 
@@ -86,8 +89,8 @@ public struct RemoteReconnectPolicy {
     public init() {}
     public mutating func verifiedConnection() { armed = true; attempt = 0 }
     public mutating func suspend() { armed = false; attempt = 0 }
-    public mutating func nextDelay(enabled: Bool, wasCapturing: Bool) -> TimeInterval? {
-        if wasCapturing { suspend(); return nil }
+    public mutating func nextDelay(enabled: Bool, wasCapturing: Bool, requiresPairing: Bool = false) -> TimeInterval? {
+        if wasCapturing || requiresPairing { suspend(); return nil }
         guard enabled, armed, attempt < delays.count else { return nil }
         let delay = delays[attempt]
         attempt += 1

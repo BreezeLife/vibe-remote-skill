@@ -149,6 +149,7 @@ final class BluetoothService: NSObject {
         reconnectTimer = nil
         reconnectPolicy.suspend()
         isReconnectAttempt = false
+        if discovery.pairingRequiredID != id { discovery.pairingRequiredID = nil }
         discovery.rememberedID = id
         defaults.set(id.uuidString, forKey: Self.selectedPeripheralKey)
         targetRemoteID = id
@@ -182,6 +183,7 @@ final class BluetoothService: NSObject {
         guard peripheral == nil, retiringPeripheral == nil else { return }
         stopDiscovery()
         discovery.rememberedID = nil
+        discovery.pairingRequiredID = nil
         defaults.removeObject(forKey: Self.selectedPeripheralKey)
         defaults.removeObject(forKey: Self.savedPeripheralKey)
         catalog.clear()
@@ -311,7 +313,8 @@ final class BluetoothService: NSObject {
     private func scheduleReconnect(wasCapturing: Bool) {
         guard let id = discovery.rememberedID,
               let delay = reconnectPolicy.nextDelay(enabled: discovery.autoReconnectEnabled,
-                                                     wasCapturing: wasCapturing) else {
+                                                     wasCapturing: wasCapturing,
+                                                     requiresPairing: discovery.pairingRequiredID == id) else {
             isReconnectAttempt = false
             discovery.connectingID = nil
             publishDiscovery()
@@ -401,6 +404,7 @@ final class BluetoothService: NSObject {
             connectionTimer?.invalidate()
             connectionTimer = nil
             ready = true
+            discovery.pairingRequiredID = nil
             isReconnectAttempt = false
             reconnectPolicy.verifiedConnection()
             discovery.connectingID = nil
@@ -562,8 +566,27 @@ final class BluetoothService: NSObject {
         onLevel?(-60)
     }
 
-    private func fail(_ message: String) {
-        resetConnection(status: message, cancel: true)
+    private func fail(_ message: String, error: Error? = nil) {
+        if let error, let id = peripheral?.identifier {
+            handleConnectionFailure(error, remoteID: id, fallbackStatus: message,
+                                    cancel: true, allowReconnect: false)
+        } else { resetConnection(status: message, cancel: true) }
+    }
+
+    // Shared by connection and protocol callbacks after their peripheral identity guards.
+    func handleConnectionFailure(_ error: Error?, remoteID: UUID, fallbackStatus: String,
+                                 cancel: Bool, allowReconnect: Bool, wasCapturing: Bool = false) {
+        let systemError = error as NSError?
+        // Domain matters: ATT error 14 is not a lost pairing. Never infer from translated text.
+        let pairingLost = systemError?.domain == CBErrorDomain &&
+            systemError?.code == CBError.peerRemovedPairingInformation.rawValue
+        if pairingLost { discovery.pairingRequiredID = remoteID }
+        let retry = allowReconnect && discovery.pairingRequiredID != remoteID
+        let status = pairingLost
+            ? "配对信息已失效；请在系统蓝牙设置中忽略这只遥控器，再重新配对。已暂停自动重连。"
+            : fallbackStatus
+        resetConnection(status: status, cancel: cancel, retainReconnectPolicy: retry)
+        if retry { scheduleReconnect(wasCapturing: wasCapturing) }
     }
 
     private func resetConnection(status: String, cancel: Bool, retainReconnectPolicy: Bool = false) {
@@ -668,9 +691,9 @@ extension BluetoothService: CBCentralManagerDelegate {
         }
         guard candidate === peripheral else { return }
         let retry = isReconnectAttempt
-        resetConnection(status: "连接失败：\(error?.localizedDescription ?? "请唤醒遥控器，必要时到系统蓝牙设置中配对")",
-                        cancel: false, retainReconnectPolicy: retry)
-        if retry { scheduleReconnect(wasCapturing: false) }
+        handleConnectionFailure(error, remoteID: candidate.identifier,
+            fallbackStatus: "连接失败：\(error?.localizedDescription ?? "请唤醒遥控器，必要时到系统蓝牙设置中配对")",
+            cancel: false, allowReconnect: retry)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral candidate: CBPeripheral,
@@ -682,18 +705,16 @@ extension BluetoothService: CBCentralManagerDelegate {
         guard candidate === peripheral else { return }
         let wasCapturing = opening || streaming || !manualStopGate.allowsStart
         let retry = (ready || isReconnectAttempt) && !wasCapturing
-        resetConnection(status: wasCapturing
-                        ? "收音时连接中断；请松开语音键，再点击连接"
-                        : "遥控器已断开；点击连接可重新连接",
-                        cancel: false, retainReconnectPolicy: retry)
-        if retry { scheduleReconnect(wasCapturing: wasCapturing) }
+        handleConnectionFailure(error, remoteID: candidate.identifier,
+            fallbackStatus: wasCapturing ? "收音时连接中断；请松开语音键，再点击连接" : "遥控器已断开；点击连接可重新连接",
+            cancel: false, allowReconnect: retry, wasCapturing: wasCapturing)
     }
 }
 
 extension BluetoothService: CBPeripheralDelegate {
     func peripheral(_ candidate: CBPeripheral, didDiscoverServices error: Error?) {
         guard candidate === peripheral else { return }
-        if let error { return fail("ATVV 服务发现失败：\(error.localizedDescription)") }
+        if let error { return fail("ATVV 服务发现失败：\(error.localizedDescription)", error: error) }
         guard let service = candidate.services?.first(where: { $0.uuid == Self.serviceUUID }) else {
             return fail("该设备没有 ATVV 音频服务；请确认是小米语音遥控器")
         }
@@ -704,7 +725,7 @@ extension BluetoothService: CBPeripheralDelegate {
     func peripheral(_ candidate: CBPeripheral, didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
         guard candidate === peripheral, service.uuid == Self.serviceUUID else { return }
-        if let error { return fail("ATVV 特征发现失败：\(error.localizedDescription)") }
+        if let error { return fail("ATVV 特征发现失败：\(error.localizedDescription)", error: error) }
         let characteristics = service.characteristics ?? []
         commandCharacteristic = characteristics.first { $0.uuid == Self.commandUUID }
         audioCharacteristic = characteristics.first { $0.uuid == Self.audioUUID }
@@ -726,7 +747,7 @@ extension BluetoothService: CBPeripheralDelegate {
                     error: Error?) {
         guard candidate === peripheral,
               characteristic === audioCharacteristic || characteristic === controlCharacteristic else { return }
-        if let error { return fail("ATVV 通知订阅失败：\(error.localizedDescription)") }
+        if let error { return fail("ATVV 通知订阅失败：\(error.localizedDescription)", error: error) }
         guard characteristic.isNotifying else { return fail("ATVV 音频通知被关闭，请重新连接") }
         if characteristic === audioCharacteristic { audioNotificationConfirmed = true }
         if characteristic === controlCharacteristic { controlNotificationConfirmed = true }
@@ -736,14 +757,14 @@ extension BluetoothService: CBPeripheralDelegate {
     func peripheral(_ candidate: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic,
                     error: Error?) {
         guard candidate === peripheral, characteristic === commandCharacteristic else { return }
-        if let error { fail("ATVV 命令发送失败：\(error.localizedDescription)") }
+        if let error { fail("ATVV 命令发送失败：\(error.localizedDescription)", error: error) }
     }
 
     func peripheral(_ candidate: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?) {
         guard candidate === peripheral else { return }
         guard characteristic === controlCharacteristic || characteristic === audioCharacteristic else { return }
-        if let error { return fail("ATVV 数据接收失败：\(error.localizedDescription)") }
+        if let error { return fail("ATVV 数据接收失败：\(error.localizedDescription)", error: error) }
         guard let data = characteristic.value else { return }
         if characteristic === controlCharacteristic { handleControl(data) }
         if characteristic === audioCharacteristic { handleAudio(data) }

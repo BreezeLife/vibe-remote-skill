@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-10 (Asia/Shanghai).
+Updated: 2026-10-11 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -12,12 +12,37 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Observed on 2026-10-10 before update: /Applications/Vibe Remote.app, 0.2.5 / build 8;
-the current-user ~/Applications copy is absent. Inspected unbound and all 9 workspace drafts
-as empty, quit normally, and backed up the old bundle. The 0.2.6 system Installer is now
-at administrator authorization; user action is pending. Hardware and real Codex acceptance
-remain separate from the simulated checks below.
+Observed on 2026-10-11: system /Applications/Vibe Remote.app is 0.2.6 / build 9 and a
+process runs from that system path; no ~/Applications copy. The user reports a discovered remote
+failing with Peer removed pairing information and needing system Forget to reconnect. The cause
+of recurring bond loss and successful physical repair are not yet confirmed. 0.2.7 recovery guidance
+is packaged; the running 0.2.6 and user's current drafts/configuration are preserved.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.7 — explicit pairing-loss recovery
+
+- [x] Classify the exact CoreBluetooth pairing-loss error in connection/disconnection and ATVV callbacks.
+- [x] Cancel automatic retries for that failed pairing while preserving ordinary bounded reconnect,
+  selection, user preference, settings and drafts. Explicit retry after repair remains available.
+- [x] Add device-scoped recovery state and an in-app three-step system re-pair guide; distinguish
+  everyday wake/reconnect, pairing mode, app Forget Selection and macOS Forget Device.
+- [x] Pass 70 core tests, 24 model scenarios/170 assertions, 60 integration scenarios/190 assertions,
+  307 adapter assertions, 30 Python tests and neutral configuration validation; recovery regressions
+  failed before fixes.
+- [x] Independent review and 740 pt fake-service UI render passed; no actual radio/permissions used.
+- [x] Release/package build and independent expansion passed: 0.2.7/build 10, strict signature,
+  source icon, /Applications payload, nonrelocation and LocalSystem-only domain.
+- [x] Correct the prior CI delayed-navigation fixture: observed a 150 ms first snapshot against
+  an unrealistically short 100 ms budget, then passed with the production 2 second budget.
+- [ ] Install 0.2.7 when current in-memory drafts are safe to close.
+- [ ] User confirms system re-pair restores ATVV readiness and normal wake/reconnect works afterward.
+- [ ] Determine recurring bond-loss trigger (pairing chord, another host, or normal wake); do not
+  describe the root cause as resolved based only on error handling tests.
+
+Package: ~/Downloads/VibeRemote-0.2.7-System-20261011/VibeRemote-0.2.7-arm64.pkg
+(3,278,394 bytes; arm64; system /Applications only).
+SHA-256: ead5202e7da703576514c3f182afe15b3820b5e053d2e4e8a6e7012791f034d5.
+The app is ad-hoc signed; installer unsigned/unnotarized. System Bluetooth pairing was not changed.
 
 ## 0.2.6 — Codex one-click setup, conversations and test guidance
 
@@ -42,7 +67,7 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
   (740 pt pages and 960 pt whole window) passed. GitHub workflow includes catalog checks.
 - [x] Independently expand package and verify 0.2.6/build 9, LocalSystem-only domain,
   /Applications payload, disabled relocation, canonical icon bytes and strict app signature.
-- [ ] Complete system administrator authorization, then verify the installed/running 0.2.6.
+- [x] Later verified 0.2.6/build 9 on disk and process path /Applications on 2026-10-11.
 - [ ] User-led real Codex acceptance: two sessions, independent drafts, focus, two-step Send,
   running-task Steer and capability-failure fallback. Computer-use access to Codex was denied;
   injected fixture results are not evidence of real UI compatibility.

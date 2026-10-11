@@ -1,4 +1,5 @@
 import Foundation
+import CoreBluetooth
 import VibeRemoteCore
 
 // Model actions use fake services. Real BluetoothService initialization checks
@@ -637,7 +638,57 @@ private func realServiceRestoresOnlyPreferencesAndForgetsOnlyRemoteKeys() {
           "forget never makes a remembered peripheral ready or starts hardware activity")
 }
 
+private func pairingLossExplainsRecoveryAndPreservesSelection() {
+    let suite = "VibeRemote-PairingFixture-\(UUID())"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let id = UUID()
+    defaults.set(id.uuidString, forKey: "VibeRemote.selectedATVVPeripheral")
+    defaults.set(id.uuidString, forKey: "VibeRemote.verifiedATVVPeripheral")
+    defaults.set("keep", forKey: "fixture.unrelated")
+    let bluetooth = BluetoothService(defaults: defaults)
+    let speech = FakeSpeech(authorized: false)
+    let model = RemoteModel(bluetooth: bluetooth, speech: speech)
+    model.replaceDraft("synthetic retained draft")
+    let failure = NSError(domain: CBErrorDomain, code: CBError.peerRemovedPairingInformation.rawValue,
+        userInfo: [NSLocalizedDescriptionKey: "Synthetic localized pairing error"])
+    bluetooth.handleConnectionFailure(failure, remoteID: id, fallbackStatus: "generic failure",
+        cancel: false, allowReconnect: true)
+    check(model.discovery.pairingRequiredID == id, "bond loss produces device-scoped repair guidance")
+    check(model.connectionStatus.contains("重新配对"), "bond loss explains the system action independent of locale")
+    check(model.discovery.connectingID == nil && model.discovery.connectedID == nil && !model.ready,
+          "bond loss never appears connected or waiting for automatic retry")
+    check(model.discovery.rememberedID == id && model.discovery.autoReconnectEnabled,
+          "terminal failure suspends retries without removing selection or changing user preference")
+    check(defaults.string(forKey: "VibeRemote.verifiedATVVPeripheral") == id.uuidString &&
+          defaults.string(forKey: "fixture.unrelated") == "keep", "failure preserves saved values")
+    check(model.draft.text == "synthetic retained draft", "pairing failure preserves draft")
+    bluetooth.disconnect()
+    check(model.discovery.pairingRequiredID == id, "manual disconnect does not pretend system pairing is repaired")
+    bluetooth.forgetRemote()
+    check(model.discovery.pairingRequiredID == nil, "forget clears this app's device-scoped recovery hint")
+}
+
+private func unrelatedErrorsDoNotClaimPairingLoss() {
+    for error: Error? in [nil,
+        NSError(domain: CBATTErrorDomain, code: 14, userInfo: [NSLocalizedDescriptionKey: "Peer removed pairing information"]),
+        NSError(domain: CBErrorDomain, code: CBError.connectionTimeout.rawValue)] {
+        let suite = "VibeRemote-ErrorFixture-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = BluetoothService(defaults: defaults)
+        var status = ""
+        service.onStatus = { status = $0 }
+        service.handleConnectionFailure(error, remoteID: UUID(), fallbackStatus: "original diagnostic",
+            cancel: false, allowReconnect: false)
+        check(service.discovery.pairingRequiredID == nil && status == "original diagnostic",
+              "different domain or code retains original diagnostic without suggesting unpair")
+    }
+}
+
 private let cases: [(String, () -> Void)] = [
+    ("pairing loss recovery and preservation", pairingLossExplainsRecoveryAndPreservesSelection),
+    ("pairing error domain isolation", unrelatedErrorsDoNotClaimPairingLoss),
     ("discovery state and readiness separation", discoveryStateIsObservedWithoutInventingReadiness),
     ("explicit discovery action forwarding", idleDiscoveryActionsForwardWithoutChangingDrafts),
     ("discovery and selection capture guards", captureAndFinalizationGuardRemoteSelectionAndDiscovery),

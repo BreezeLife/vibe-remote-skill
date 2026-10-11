@@ -47,6 +47,10 @@ struct RemoteConnectionView: View {
                     .help("断开当前连接，并停止本次自动重连。")
             }
 
+            if discovery.pairingRequiredID != nil {
+                pairingRecovery
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("可选设备").font(.caption.weight(.semibold))
@@ -107,11 +111,44 @@ struct RemoteConnectionView: View {
         }
     }
 
+    private var pairingRecovery: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Label("需要重新配对", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Spacer(minLength: 0)
+                Button("打开蓝牙设置", action: openBluetoothSettings)
+            }
+            Text("遥控器的配对信息已失效，自动重连已暂停。")
+                .font(.callout)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("1. 系统设置 → 蓝牙 → 这只小米遥控器，选择「忽略／忘记此设备」。")
+                Text("2. 同时按住主页（房子）＋菜单（三横线）进入配对，再在 macOS 中连接。")
+                Text("3. 回到这里重新搜索并选择遥控器，等待「语音已就绪」。")
+            }
+            .font(.caption)
+            .fixedSize(horizontal: false, vertical: true)
+            Text("应用内「忘记选择」只清除连接偏好，不能删除系统配对。修复后可手动重试连接。")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("平时重连只需短按普通按键唤醒，无需忘记设备；主页＋菜单仅用于重新配对。")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.3)))
+    }
+
     private func deviceRow(_ device: NearbyRemote) -> some View {
         let ready = model.ready && discovery.connectedID == device.id
         let connecting = discovery.connectingID == device.id
         let verifying = discovery.connectedID == device.id && !ready
-        let state = ready ? "语音已就绪" : connecting ? "正在连接" : verifying ? "验证语音协议" : "点击连接"
+        let pairingRequired = discovery.pairingRequiredID == device.id
+        let state = ready ? "语音已就绪" : connecting ? "正在连接" : verifying ? "验证语音协议" :
+                    pairingRequired ? "需要重新配对" : "点击连接"
         return Button { model.selectRemote(device.id) } label: {
             HStack(spacing: 10) {
                 Image(systemName: ready ? "checkmark.circle.fill" : "dot.radiowaves.left.and.right")
@@ -126,7 +163,7 @@ struct RemoteConnectionView: View {
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(state).font(.caption.weight(.medium))
-                        .foregroundStyle(ready ? Color.green : connecting || verifying ? Color.orange : Color.accentColor)
+                        .foregroundStyle(ready ? Color.green : connecting || verifying || pairingRequired ? Color.orange : Color.accentColor)
                     if let rssi = device.rssi {
                         Text("信号 \(rssi) dBm").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                             .help("本次搜索观察到的广播信号强度，不能直接换算为距离。")
@@ -142,7 +179,8 @@ struct RemoteConnectionView: View {
         }
         .buttonStyle(.plain)
         .disabled(!canSelect)
-        .help(canSelect ? "连接 \(displayName(device))；完成协议验证后才能使用语音。" : "切换遥控器前，请先断开并等待当前操作结束。")
+        .help(canSelect ? pairingRequired ? "请先在 macOS 重新配对，再点击重试连接。" :
+              "连接 \(displayName(device))；完成协议验证后才能使用语音。" : "切换遥控器前，请先断开并等待当前操作结束。")
         .accessibilityLabel("\(displayName(device))，\(sourceLabel(device))")
         .accessibilityValue(state)
     }

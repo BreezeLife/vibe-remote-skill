@@ -234,3 +234,17 @@ Protocol references: [App Server](https://learn.chatgpt.com/docs/app-server) and
 [Codex deep links](https://learn.chatgpt.com/docs/reference/commands#deep-links).
 Use the installed bundled CLI's generated schema to check version-specific fields;
 experimental project APIs are not required by this milestone.
+
+
+## 2026-10-11 — pairing loss is separate from ordinary reconnect
+
+- A discovered remote is not proof its saved bond still works. Classify lost pairing only by
+  CBErrorDomain + peerRemovedPairingInformation; ATT error 14 and translated text are insufficient.
+- Bond loss suspends timers/retry eligibility, retaining the user's auto-reconnect preference,
+  selected remote, settings and drafts. The recovery marker is transient and device-scoped.
+- Keep explicit retry available after system re-pairing. Clear same-device recovery only on
+  verified ATVV readiness; forgetting this app's choice or selecting another device clears the hint.
+- The app never unpairs macOS devices. Explain system Forget vs app Forget Selection. Ordinary
+  reconnection wakes with a normal key; HOME+MENU belongs to pairing, not every connection.
+- The screenshot proves a pairing error, not why it recurred. Distinguish the implemented recovery
+  handling from user-confirmed physical repair; ask about re-entering pairing mode/other hosts.

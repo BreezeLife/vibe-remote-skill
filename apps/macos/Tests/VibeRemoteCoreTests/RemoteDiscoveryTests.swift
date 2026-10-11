@@ -109,4 +109,13 @@ final class RemoteDiscoveryTests: XCTestCase {
         XCTAssertNil(policy.nextDelay(enabled: false, wasCapturing: false))
         XCTAssertEqual(policy.nextDelay(enabled: true, wasCapturing: false), 5)
     }
+    func testPairingLossSuspendsRetriesUntilAnotherVerifiedConnection() {
+        var policy = RemoteReconnectPolicy()
+        policy.verifiedConnection()
+        XCTAssertNil(policy.nextDelay(enabled: true, wasCapturing: false, requiresPairing: true))
+        XCTAssertNil(policy.nextDelay(enabled: true, wasCapturing: false))
+        policy.verifiedConnection()
+        XCTAssertEqual(policy.nextDelay(enabled: true, wasCapturing: false), 2)
+    }
+
 }

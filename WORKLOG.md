@@ -614,3 +614,50 @@ Opened the exact 0.2.6 package in macOS Installer, confirmed installation for al
 HD and started it. Administrator authorization requires the user's system action; requested that
 without collecting credentials. Final installed/running version and real Codex/remote acceptance
 are pending. STATUS.md and .project-pulse/ remain untouched.
+
+
+## 2026-10-11 — discovered remote rejected with lost pairing information
+
+User provided app screenshot showing a discovered Xiaomi voice remote and connection failure
+“Peer removed pairing information”; then a macOS Bluetooth screenshot explaining that a previously
+connected remote now needs Forget to recover. Read-only installed metadata confirms 0.2.6/build 9
+under /Applications, no current-user copy, and running executable from the system path.
+
+Systematic investigation: Apple SDK declares CBErrorPeerRemovedPairingInformation = 14 in
+CBErrorDomain. The connection-failure path displayed only localized English; the disconnection
+path ignored Error, and both could retain automatic retry eligibility for a failed bond. ATVV
+error callbacks also lacked a common recovery classification. This establishes the handling gap;
+it does not establish why the remote/host bond became inconsistent. Asked whether the user had
+repeated HOME+MENU pairing mode or connected another host, and for the outcome after repair.
+
+Factored shared failure handling behind existing current/retiring peripheral guards. Exact bond
+loss now sets an ephemeral device-scoped marker before publishing disconnect, clears timers and
+suspends policy, leaving selection/preferences/drafts intact. Ordinary transient errors retain
+bounded reconnect behavior. Explicit manual retry stays available; verified ATVV handshake clears
+the recovery marker. All error-bearing protocol callbacks use the same classifier. UI shows system
+Forget/re-pair/search steps and distinguishes app Forget Selection from macOS pairing. Normal daily
+wake uses a short ordinary-key press; the HOME+MENU combination is for pairing only. No system
+pairing was removed automatically and no radio, privacy setting or user's app config was changed.
+
+Regression evidence: baseline core 70 tests/2 failures and model 24 scenarios/170 assertions/3
+failures reproduced missing handling. Final core70/0, model24/170/0, integration60/190/0, Python30/OK
+and neutral config validation passed. Independent review found no blocker. Core tests cover armed
+retry suspension; actual service fixtures use isolated defaults and no central, proving classification,
+publication and preservation rather than real Bluetooth recovery. Fake-only 740 pt production-view
+render inspected without overflow. No physical connection or audio acceptance is claimed.
+
+Built and independently expanded 0.2.7/build 10. Verified LocalSystem-only installation domain,
+/Applications destination, no relocation, source icon equality, bundle identity and strict signature.
+Package: ~/Downloads/VibeRemote-0.2.7-System-20261011/VibeRemote-0.2.7-arm64.pkg,
+3,278,394 bytes; SHA-256 ead5202e7da703576514c3f182afe15b3820b5e053d2e4e8a6e7012791f034d5.
+The app remains ad-hoc signed and installer unsigned/unnotarized. Existing running 0.2.6 has not
+been closed; fresh draft safety and physical re-pair outcome require user confirmation. No attempt
+was made to manipulate protected Codex UI or system pairing through alternate automation.
+
+
+Checked previous GitHub run 37977391582: it failed a tool-adapter delayed-navigation fixture
+(307 assertions, one failure), so subsequent native catalog/integration/package CI steps had
+been skipped. The fixture allowed only 100 ms for two observations. Reproduced deterministically
+with a 150 ms first fake snapshot (red307/1), then used the production 2-second navigation budget
+(green307/0), retaining the requirement to observe twice while opening the URL exactly once.
+This correction changes tests only; the independently verified 0.2.7 package is unchanged.

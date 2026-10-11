@@ -39,6 +39,9 @@ cannot establish the desktop app's active turn. The shipped app does not depend 
 Codex agent tools or an LLM for these controls. Existing manual bindings and other tool
 presets retain their behavior. Actual Codex UI automation was denied during development;
 catalog fixtures and builds do not establish real navigation, input or Steer acceptance.
+Version 0.2.7 identifies explicit pairing-information loss, suspends automatic retries for that
+device, and shows macOS re-pairing guidance. It never removes system pairing; ordinary idle
+reconnect remains separate and retains the saved bond/selection.
 Doubao/Typeless virtual microphone remains future work.
 
 `skills/vibe-remote` retains the original Python configuration/planner/tmux tools.

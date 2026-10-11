@@ -12,7 +12,7 @@
 先复制需要保留的草稿并退出应用，再双击安装包按提示安装；安装器要求关闭运行中的
 Vibe Remote。安装后从上述目录打开应用，保持只运行一份。
 
-当前打包版本为 **0.2.6 / build 9 / macOS 13+**，新增 Codex 一键配置、项目与会话切换、
+当前打包版本为 **0.2.7 / build 10 / macOS 13+**，新增 Codex 一键配置、项目与会话切换、
 确认输入和运行中补充任务。保留 Pro 2 实物按键布局、编程工具默认方案、附近遥控器选择、
 有限自动重连，以及放大遥控器＋Vibe 字样的图标。实际工具能力仍需按下文逐项检查。
 安装包按构建机器的架构生成；Apple Silicon 对应 `arm64`。
@@ -29,7 +29,7 @@ bash scripts/package_macos_app.sh
 
 ```sh
 VIBE_PACKAGE_OUTPUT_DIR="$HOME/Downloads" bash scripts/package_macos_app.sh
-sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.6-arm64.pkg" -target /
+sudo installer -pkg "$HOME/Downloads/VibeRemote-0.2.7-arm64.pkg" -target /
 open "/Applications/Vibe Remote.app"
 ```
 
@@ -94,6 +94,8 @@ iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不�
 搜索不会自行连接列表第一项，点击某个设备才会开始连接；更换设备前先断开当前连接。
 
 选择会保存在本机，下次打开应用点击 **连接已选遥控器** 即可优先连接同一只。
+正常重连时，短按一个普通按键唤醒遥控器即可，无需每次忘记设备或重新配对。
+**主页＋菜单** 是配对组合，仅在首次配对或修复配对时使用，不作为日常唤醒方法。
 启动应用本身不扫描、不申请权限、不收音；按钮映射仍需独立完成输入监控及本次验收。
 默认启用的自动重连仅用于本次已验证连接在空闲时意外中断，延迟 2、5、10 秒最多尝试三次。
 点击断开、关闭自动重连、手动结束收音、收音中断、协议检查失败或系统蓝牙不可用时保持停止。
@@ -104,6 +106,25 @@ iCloud / File Provider 会在签名后重新附加 Finder 元数据，因此不�
 系统配对确认仍由 macOS 完成。本实现采用 Apple 的
 [设备扫描与连接流程](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/PerformingCommonCentralRoleTasks/PerformingCommonCentralRoleTasks.html)，
 缓存检索本身不作为可达性或就绪证据。真实发现、配对和两次连续收音仍须用遥控器验收。
+
+### 找得到，但提示 Peer removed pairing information
+
+这个错误表示遥控器端已移除原来的配对信息，Mac 保存的旧配对无法继续使用。
+能扫描到设备只证明收到了广播；此时需要重新建立系统蓝牙配对，反复点击连接不能修复旧配对。
+应用会显示 **需要重新配对** 并暂停这只设备的自动重连，保留工作区、已学习按键和草稿。
+
+1. 打开 **系统设置 → 蓝牙**，找到这只 **小米蓝牙语音遥控器**，进入详情并选择
+   **忽略此设备／忘记此设备**。只处理这只遥控器。
+2. 将遥控器靠近 Mac，同时按住 **主页键（房子）＋菜单键（三横线）** 进入配对模式，
+   再在 macOS 蓝牙页面选择遥控器并完成配对。按键组合参考
+   [小米官方配对说明](https://www.mi.com/service/mitv/firstuse)；系统提示由你确认。
+3. 返回 Vibe Remote，点击 **搜索附近遥控器**，选择重新发现的设备，等待 **语音已就绪**。
+   若仍失败，先确认系统配对完成，再手动重试；应用不会自行删除或重置系统配对。
+
+应用内的 **忘记选择** 只清除本应用记住的设备，不能代替第 1 步。
+上述系统忘记与重新配对只用于这个配对失效错误；修复后，平时短按普通按键唤醒并连接即可。
+截图中的 **语音识别尚未授权** 是另一项权限：蓝牙恢复后点击 **启用语音识别** 并允许，
+再按住语音键说话，确认有音量变化、松开后产生草稿。语音识别授权不会修复蓝牙配对错误。
 
 ## 配置按键
 
