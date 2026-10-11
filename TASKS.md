@@ -22,6 +22,9 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.2.8 — third-party voice input configuration
 
+Implementation commit `6cf811a` is pushed to origin/main. New hosted checks have been requested;
+local verification and installer checks below are complete. Installation/physical acceptance remain pending.
+
 - [x] Add native profiles for Typeless, Doubao IME, Wispr Flow, Superwhisper, macOS Dictation
   and custom providers. Preserve older settings, button/workspace profiles and drafts.
 - [x] Detect installed provider bundles, including system/user Input Methods; distinguish Doubao

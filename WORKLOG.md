@@ -703,3 +703,8 @@ and no relocation entries confirms the intended package behavior. This was a che
 a package mutation. App ad-hoc signed, installer unsigned/unnotarized. System /Applications currently
 runs 0.2.7; asked whether its current in-memory drafts are safe before closing/opening the installer.
 Previous GitHub run 38144937313 for 430feba completed successfully. Public sync for this change follows.
+
+Implementation committed and pushed as `6cf811a` to origin/main. The code/config/docs checkout is
+clean apart from pre-existing untracked STATUS.md and .project-pulse, which were left untouched.
+GitHub checks were triggered; no hosted success for this revision is claimed yet. No response to
+the current draft-safety question had arrived, so the running installed app was not closed.
