@@ -64,6 +64,8 @@ This supersedes the earlier draft-first preference below; old configuration reta
   the applied voice profile and workspace presets. Short presses do not enable long gestures.
 - [ ] Verify the remaining controls, import observed mappings, and check app observation,
   exclusive suppression and voice coexistence before enabling coding-tool actions.
+  A later 180-second window remained observing with one interface and no removal/reset,
+  but received zero callbacks; actual press timing for that window was not confirmed.
 - [ ] Real plain-editor insertion/selection, focus-loss retention, Doubao microphone/shortcut
   and provider completion test. Codex/Claude/WorkBuddy direct input remains unverified.
 

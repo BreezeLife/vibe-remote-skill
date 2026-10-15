@@ -841,3 +841,14 @@ The user clarified Doubao supports double-click or hold Ctrl and can select the 
 the automatic-send setting is unknown. This does not establish microphone selection or
 disabled auto-send, so no provider-ready confirmation was fabricated and no Codex dictation
 was started. Another allowed attempt to inspect the now-open Doubao settings also timed out.
+
+The subsequent 180-second exact-remote observation finished normally with zero callbacks,
+zero errors and zero down/up events. Every heartbeat and the pre-close snapshot remained
+observing with one interface; no device removal or running reset occurred. Only the explicit
+final cleanup reset the service. This rules out an early observer reset in that window,
+but does not prove whether physical presses occurred during it or diagnose a hardware fault.
+No new observer was left running. Remaining five keys, application-level calibration and
+exclusive suppression, voice delivery, provider settings and actual Codex use remain pending.
+
+Installation/configuration/six-key progress was committed and pushed as 2b23d35. Private
+local setup files, unrelated STATUS.md and .project-pulse/ were not staged or published.
