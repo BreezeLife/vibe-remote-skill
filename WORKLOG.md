@@ -1039,3 +1039,10 @@ the UI channel is not considered recovered. System Settings remains readable; se
 Accessibility opened a Touch ID/password authorization prompt. Asked for explicit user consent
 for the current system app's AX access and system authentication; no grant has been claimed.
 Implementation was committed/pushed as `dedf63a`; hosted results remain pending.
+
+The user explicitly approved current-app Accessibility access and reported completing system
+authentication. Through System Settings Add, selected the visible /Applications/Vibe Remote.app
+file and opened it; the resulting Vibe Remote switch is on. No unrelated permission was changed.
+Reading Vibe Remote still returned the native pipe-closed error. Asked the user to refresh its
+own Accessibility status and then reconnect the selected remote; both runtime results remain
+pending. Hosted verification for `dedf63a` completed successfully in run 38761805987.

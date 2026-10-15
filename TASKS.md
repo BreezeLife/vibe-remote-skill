@@ -48,15 +48,17 @@ The exact stale-grant/identity cause is not established; no permissions were cha
 - [x] User saved drafts and quit; Installer completed 0.2.11 installation. Verified system path,
   installed version/build, signature, no user-directory copy and exact settings preservation.
 - [ ] Restore current-app authorization if needed, then repeat actual remote → loopback → Doubao
-  → plain-editor transcription. System Settings is awaiting user authentication/consent;
-  no grant or successful transcription is established yet.
+  → plain-editor transcription. After explicit user consent and system authentication, added
+  the exact /Applications/Vibe Remote.app through Accessibility; the system switch is on.
+  Await user verification of current-process trust and fresh BLE readiness; no transcription pass yet.
 
 Package: ~/Downloads/VibeRemote-0.2.11-System-20261015/VibeRemote-0.2.11-arm64.pkg
 (3,518,563 bytes; app ad-hoc signed, installer unsigned/unnotarized).
 SHA-256: 8c70d65214b5922adc6717868f17972ef59a01dc40e5d2537cccd09e0d621e80.
 Installed/launched: 0.2.11/build 14. Home UI was readable; navigating to permissions again closed
 the computer-use pipe, so actual app permission verification still needs the user. System Settings
-remains accessible. Implementation `dedf63a` is pushed; its hosted checks are not yet verified.
+remains accessible. Implementation `dedf63a` is pushed and hosted checks passed:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/38761805987.
 The new preflight does not grant OS permissions.
 
 ## 0.2.10 — explicit current-input submission
