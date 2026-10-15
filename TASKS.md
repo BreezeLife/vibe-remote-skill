@@ -20,8 +20,9 @@ UI control channel failed. The user later reported the current app shows “就�
 delivery remains unverified. The prior direct 2026-10-12 ATVV-ready observation belongs to 0.2.7.
 A first remote-only HID observation received zero events despite reported presses. A second
 coordinated 60-second observation recorded six real down/up pairs through the production
-receiver; later evidence made the Home/Menu physical labels ambiguous. App calibration/enabling,
-audio delivery and transcription remain
+receiver. Subsequent OK and four-key checks, followed by a house/menu/house control sequence,
+established 11 distinct short-press mappings. Home is 74 and Menu is 101; the earlier Menu=74
+label was superseded. App observation/enabling, audio delivery and transcription remain
 unverified. The pairing-loss cause is unresolved.
 GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803fb52
 (run 38179199650) completed successfully.
@@ -62,15 +63,25 @@ This supersedes the earlier draft-first preference below; old configuration reta
 - [ ] Real key sequence and audio-frame test with user-operated remote; the first observation
   window had no key events. Never label injected events as physical acceptance.
 - [x] Second observation: six complete down/up pairs arrived in the requested sequence;
-  keyboard page 7/report 1, usages 82/81/80/79/241/74. The initial Menu=74 label is now pending
-  verification because a later requested Home sequence also starts with 74. No injection was used.
+  keyboard page 7/report 1, usages 82/81/80/79/241/74. The initial Menu=74 label is superseded
+  by the distinct-icon control sequence below. No injection was used.
 - [x] Independent OK-only observation: page 7/report 1/usage 40, one down/up pair, about 0.135 s.
 - [x] Further actual sequences: 74/53/128/129 repeated three times (24 events), when the requested
-  order was Home/TV/Volume Up/Volume Down. Resolve Home/Menu by distinct physical icons first.
+  order was Home/TV/Volume Up/Volume Down.
+- [x] Distinct-icon control: house/menu/house produced 74/101/74, each with down/up; 24 callbacks,
+  zero errors, no connection reset. The observer closed normally after the user's completion reply.
+- [x] Final short-press map, all page 7/report 1: Up 82, Down 81, Left 80, Right 79, OK 40,
+  Back 241, Home 74, Menu 101, TV 53, Volume Up 128, Volume Down 129.
 - [x] Prepare and validate a private six-key calibration import from those events, preserving
   the applied voice profile and workspace presets. Short presses do not enable long gestures.
-  This historical file must NOT be imported while its Menu=74 physical label is unresolved.
-- [ ] Verify the remaining controls, import observed mappings, and check app observation,
+  This historical file must NOT be imported: its Menu=74 physical label has been corrected.
+- [x] Prepare the corrected eleven-key local import and a new exact-byte active-settings backup;
+  actual NativeSettingsStore validation/round-trip and preservation/unique-binding checks passed.
+  Every supportsHold is false. Clear only the unverified global Back long-press stopTask;
+  retain workspace presets and the applied Doubao/current-focus/manual profile.
+- [x] User imported the corrected eleven-key file; read-only comparison confirms active settings
+  exactly match it, preserving Doubao/current-focus/manual. User reports starting app observation.
+- [ ] Check the app's physical button highlighting, then verify power/voice/hold,
   exclusive suppression and voice coexistence before enabling coding-tool actions.
   A later 180-second window remained observing with one interface and no removal/reset,
   but received zero callbacks; actual press timing for that window was not confirmed.
@@ -82,9 +93,11 @@ Latest package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-ar
 SHA-256: 5d1d56e57c730c39f24a14c67a5f106854e521a8c62101747fe5271030cd8b40.
 Local import: ~/Downloads/VibeRemote-Setup-20261015/settings.doubao-current-focus.json;
 original settings.original.json is preserved alongside it. Both are private local files outside Git.
-Historical six-key file: same folder, settings.doubao-current-focus-six-keys.json; original active
-settings backed up separately before calibration. Do not import it pending Home/Menu verification.
-Active settings still have zero HID calibrations; no ambiguous button assignment has been applied.
+Corrected button import: same folder, settings.doubao-current-focus-eleven-keys.json, with
+settings.before-eleven-key-calibration-20261015.json as its exact original-settings backup.
+Historical settings.doubao-current-focus-six-keys.json is retained but must not be imported.
+Latest active-settings check exactly matches the corrected eleven-key import. User reports the
+app's observation mode is running; real diagram response and audio checks have been requested.
 Fresh software suites passed with the counts above. Actual Vibe Remote UI control returned a
 native pipe-closed error; Doubao UI access timed out. Codex computer-use access was explicitly
 denied for safety reasons and was not bypassed. Provider and Codex acceptance require user-led

@@ -872,3 +872,38 @@ A single three-line-menu observation subsequently expired with zero events and n
 The user replied that they had pressed it after the window had closed; actual press timing was
 not established. Do not label the menu key broken from this result. A longer house/menu/house
 control sequence is being prepared to distinguish timing from an unreported button.
+
+### Controlled Home/Menu resolution and corrected eleven-key import
+
+A ten-minute-bounded, nonexclusive control window ran from 2026-10-15 13:58:42Z to 14:05:02Z
+(21:58:42–22:05:02 Asia/Shanghai). For the explicit house-icon / three-line-menu / house-icon
+request, the user pressed three complete pairs: page 7/report 1 usages 74, 101, 74. They
+arrived about 333.5, 337.8 and 341.6 seconds into the window. There were 24 underlying callbacks,
+zero errors, and no running topology reset. After the user confirmed completion, the observer
+waited for at least three quiet seconds, paused normally and saved a private summary; it did not
+restart. This resolves Home=74 and Menu=101, superseding the earlier Menu=74 label.
+
+Combined with the earlier real sequences and independent OK press, the observed short-press
+map is Up 82, Down 81, Left 80, Right 79, OK 40, Back 241, Home 74, Menu 101, TV 53,
+Volume Up 128 and Volume Down 129, all page 7/report 1. Power, voice delivery, long-press
+behavior, exclusive suppression and coding-tool actions are separate unverified capabilities.
+
+Generated settings.doubao-current-focus-eleven-keys.json under the private local setup folder,
+rebased on freshly read active settings and with a new exact-byte pre-calibration backup.
+Both files were created without replacement, mode 0600. Actual NativeSettingsStore decoding,
+validation and encoding round-trip passed twice, including preservation and unique-input checks.
+All eleven inputs have supportsHold=false; the only removed semantic action is the unverified
+global Back long-press stopTask, as required by short-only calibration validation. Workspace
+presets, single/double-click actions and Doubao/current-focus/manual remain unchanged. Power
+and mic have no new HID input. Active settings were not overwritten. The historical six-key
+file remains preserved but must not be used. Another permitted Vibe Remote UI access attempt
+failed with native pipe-closed, so user-led import and in-app observation were requested.
+
+The user then reported importing the eleven-key file and starting in-app observation.
+A fresh read-only comparison confirmed active settings exactly equal the validated file,
+with Doubao/current-focus/manual retained. Requested user-led checks for house/menu/OK
+diagram selection and, separately, a three-second voice hold in the dictation page while
+the third-party provider remains stopped/unprepared. These checks are not yet marked passed.
+Python 30 tests, neutral template validation and git diff checks passed again; native application
+code was unchanged in this calibration/documentation continuation. Prior native regression and
+release checks remain recorded separately from the live observations.
