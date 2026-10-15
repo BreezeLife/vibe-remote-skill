@@ -814,7 +814,7 @@ only for the non-binary slots is a diagnostic hypothesis, not yet an established
 Vendor report payloads, raw audio, transcripts and runtime device identifiers are not logged.
 
 The user subsequently confirmed importing the profile and seeing Doubao/current-focus/
-MiRemoteV 2ch. Read-only comparison then confirmed active settings exactly equal the validated
+MiRemoteV 2ch. Read-only comparison then confirmed active settings semantically equal the validated
 import. The user's shortcut report was “Ctrl”; hold/tap behavior, provider microphone choice
 and disabled-auto-send are still unknown, so manual triggering remains selected.
 
@@ -900,10 +900,41 @@ file remains preserved but must not be used. Another permitted Vibe Remote UI ac
 failed with native pipe-closed, so user-led import and in-app observation were requested.
 
 The user then reported importing the eleven-key file and starting in-app observation.
-A fresh read-only comparison confirmed active settings exactly equal the validated file,
+A fresh read-only comparison confirmed active settings semantically equal the validated JSON file,
 with Doubao/current-focus/manual retained. Requested user-led checks for house/menu/OK
 diagram selection and, separately, a three-second voice hold in the dictation page while
 the third-party provider remains stopped/unprepared. These checks are not yet marked passed.
 Python 30 tests, neutral template validation and git diff checks passed again; native application
 code was unchanged in this calibration/documentation continuation. Prior native regression and
 release checks remain recorded separately from the live observations.
+
+### Voice-hold acceptance and the application's separate input permission
+
+The user confirmed changing audio level/increasing duration during a physical voice hold and
+normal stop on release, with the third-party provider stopped and not prepared. Their screenshot
+shows “采音结束；遥控器仍已就绪”. This establishes user-led basic remote-audio acceptance,
+not virtual-device delivery, provider recognition or Codex input.
+
+All three in-app house/menu/OK diagram checks were reported unresponsive. The user first
+reported “按键已暂停，设备已释放”, consistent with import deliberately pausing HID. A subsequent
+screenshot identified the deeper prerequisite: Input Monitoring denied, with discovery and
+observation controls disabled. Read-only checks confirmed active eleven-key settings still match
+the validated import and current descriptor, one system app instance, and no leftover observers.
+No remapping or receiver code change was warranted. Separate observer permission is not proof
+of the installed app's permission. Updated setup guidance for explicit authorization and
+post-import discovery/observation, including the unlocked-selection diagram behavior.
+
+Computer use could inspect System Settings. Its Input Monitoring list did not yet contain
+Vibe Remote. The user changed the visible settings page while it was being inspected, so
+instructions were handed back to add /Applications/Vibe Remote.app and authorize it in macOS;
+no permission was granted by the assistant. Restart prompts must preserve needed drafts.
+System Keyboard settings also showed built-in Dictation enabled with double-Control triggering
+and an automatic MiRemoteV 2ch source. This is the system provider's state, not Doubao's.
+Read-only bundle metadata found Doubao's separate settings helper; inspect that UI after the
+system authorization step to verify its microphone/shortcut and possible trigger overlap.
+
+The user subsequently confirmed “输入监控已授权”. Asked them to refresh/discover/select and
+restart observation, leave action mappings paused, unlock diagram selection, and repeat
+house/menu/OK. That response establishes user-reported authorization, not a passed key test.
+Vibe Remote computer use still returned the same native pipe-closed error after authorization;
+no alternate UI mechanism was used.

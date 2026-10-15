@@ -16,14 +16,16 @@ Observed on 2026-10-15: installed and launched 0.2.9/build 12 from system
 /Applications/Vibe Remote.app; no ~/Applications copy. Installer confirmed successful
 installation after the user completed system authorization. System BLE and the expected
 Xiaomi HID interface were observed, but the app only reached “等待蓝牙就绪…” before the
-UI control channel failed. The user later reported the current app shows “就绪”; actual audio
-delivery remains unverified. The prior direct 2026-10-12 ATVV-ready observation belongs to 0.2.7.
+UI control channel failed. The user later reported “就绪”, then confirmed actual voice-hold
+meter/duration growth and normal stop on release; a supplied screenshot shows capture ended
+with the remote still ready. Provider audio delivery/transcription remain unverified.
 A first remote-only HID observation received zero events despite reported presses. A second
 coordinated 60-second observation recorded six real down/up pairs through the production
 receiver. Subsequent OK and four-key checks, followed by a house/menu/house control sequence,
 established 11 distinct short-press mappings. Home is 74 and Menu is 101; the earlier Menu=74
-label was superseded. App observation/enabling, audio delivery and transcription remain
-unverified. The pairing-loss cause is unresolved.
+label was superseded. A later screenshot showed the app's Input Monitoring permission denied;
+the user subsequently confirmed it is authorized. In-app observation/highlighting is being retested;
+exclusive control and mapped actions remain unverified. The pairing-loss cause is unresolved.
 GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803fb52
 (run 38179199650) completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
@@ -60,8 +62,9 @@ This supersedes the earlier draft-first preference below; old configuration reta
   choice; actual trigger behavior and microphone selection remain unverified.
 - [ ] Verify Doubao microphone/trigger/disabled-auto-send in its own UI. The applied Vibe Remote
   profile and detected devices do not establish applied provider settings or actual recording.
-- [ ] Real key sequence and audio-frame test with user-operated remote; the first observation
-  window had no key events. Never label injected events as physical acceptance.
+- [x] User-operated voice hold: user confirms changing level and increasing duration, with normal
+  stop on release while the third-party provider stayed stopped/unprepared. Screenshot shows
+  capture ended with remote ready. This verifies basic remote audio separately from transcription.
 - [x] Second observation: six complete down/up pairs arrived in the requested sequence;
   keyboard page 7/report 1, usages 82/81/80/79/241/74. The initial Menu=74 label is superseded
   by the distinct-icon control sequence below. No injection was used.
@@ -80,9 +83,14 @@ This supersedes the earlier draft-first preference below; old configuration reta
   Every supportsHold is false. Clear only the unverified global Back long-press stopTask;
   retain workspace presets and the applied Doubao/current-focus/manual profile.
 - [x] User imported the corrected eleven-key file; read-only comparison confirms active settings
-  exactly match it, preserving Doubao/current-focus/manual. User reports starting app observation.
+  semantically match its decoded JSON, preserving Doubao/current-focus/manual. User reports starting app observation.
 - [ ] Check the app's physical button highlighting, then verify power/voice/hold,
   exclusive suppression and voice coexistence before enabling coding-tool actions.
+  User reported all three diagram tests unresponsive. Active eleven-key config and current
+  descriptor match; screenshot establishes Input Monitoring denied and disabled discovery.
+  System Input Monitoring list did not contain Vibe Remote; user was directed to add/enable
+  the system app, refresh permission and restart discovery/observation. User now confirms
+  “输入监控已授权”; the three-key diagram test has been requested again, with actions paused.
   A later 180-second window remained observing with one interface and no removal/reset,
   but received zero callbacks; actual press timing for that window was not confirmed.
 - [ ] Real plain-editor insertion/selection, focus-loss retention, Doubao microphone/shortcut
@@ -96,8 +104,10 @@ original settings.original.json is preserved alongside it. Both are private loca
 Corrected button import: same folder, settings.doubao-current-focus-eleven-keys.json, with
 settings.before-eleven-key-calibration-20261015.json as its exact original-settings backup.
 Historical settings.doubao-current-focus-six-keys.json is retained but must not be imported.
-Latest active-settings check exactly matches the corrected eleven-key import. User reports the
-app's observation mode is running; real diagram response and audio checks have been requested.
+Latest active-settings check semantically matches the corrected eleven-key JSON import. User reports the
+app was paused; subsequent screenshot showed Input Monitoring denied. User subsequently confirmed
+authorization; restored in-app observation still needs verification. Do not infer in-app
+observation permission from a successful separately authorized diagnostic observer.
 Fresh software suites passed with the counts above. Actual Vibe Remote UI control returned a
 native pipe-closed error; Doubao UI access timed out. Codex computer-use access was explicitly
 denied for safety reasons and was not bypassed. Provider and Codex acceptance require user-led
