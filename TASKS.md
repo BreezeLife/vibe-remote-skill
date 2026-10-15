@@ -50,7 +50,9 @@ The exact stale-grant/identity cause is not established; no permissions were cha
 - [ ] Restore current-app authorization if needed, then repeat actual remote → loopback → Doubao
   → plain-editor transcription. After explicit user consent and system authentication, added
   the exact /Applications/Vibe Remote.app through Accessibility; the system switch is on.
-  Await user verification of current-process trust and fresh BLE readiness; no transcription pass yet.
+  The user still reported unauthorized after the app's refresh. Removed only the Vibe Remote
+  permission entry, re-added the exact system app and verified its switch is on. Await user
+  quit/relaunch and current-process trust verification, then fresh BLE readiness; no transcription pass yet.
 
 Package: ~/Downloads/VibeRemote-0.2.11-System-20261015/VibeRemote-0.2.11-arm64.pkg
 (3,518,563 bytes; app ad-hoc signed, installer unsigned/unnotarized).

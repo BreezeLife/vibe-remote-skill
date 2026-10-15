@@ -1046,3 +1046,11 @@ file and opened it; the resulting Vibe Remote switch is on. No unrelated permiss
 Reading Vibe Remote still returned the native pipe-closed error. Asked the user to refresh its
 own Accessibility status and then reconnect the selected remote; both runtime results remain
 pending. Hosted verification for `dedf63a` completed successfully in run 38761805987.
+
+The user subsequently reported Accessibility still unauthorized after refreshing. Rebuilt only
+the Vibe Remote entry in System Settings: verified the selected row before removing it, selected
+/Applications/Vibe Remote.app in the application chooser and observed the new switch on. Existing
+user consent covers the same app and permission; no unrelated permission was changed. Requested
+a normal quit/relaunch followed by the app's own refresh; that current-process result remains
+pending. Read-only bundle metadata still confirms 0.2.11 and the expected identifier/executable.
+No new transcription attempt, mapped action or code change occurred during this repair step.
