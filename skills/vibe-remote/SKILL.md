@@ -30,7 +30,9 @@ shortcuts require local setup. In draft mode, text stays in our receiver until e
 Native 0.2.9 also offers current-focus input, independent of provider. Each hold captures the
 current editable field. Built-in recognition inserts once after release/finalization; external
 providers place their own text, never imported a second time. No Enter or automatic sending.
-Current-focus mode blocks bound draft insert/send/confirm actions. It requires explicit provider
+Current-focus mode blocks bound draft insertion. From 0.2.10, an explicit send/confirm key instead
+previews the currently focused, bound AI input; a separate confirmation sends/steers it after fresh
+checks. It never re-inserts provider text or sends the old workspace draft. It requires explicit provider
 completion before another external hold; focus changes/interruption preserve native text for
 manual recovery. Keep older configurations in draft mode until the user selects a destination.
 See docs/VOICE-PROVIDERS.md. No driver is shipped; our own virtual microphone driver,
@@ -61,7 +63,8 @@ The template's workspace bindings are deliberately unverified and cannot submit 
 ## Fixed button intentions
 
 The table describes the draft/workspace workflow. In native current-focus mode, the voice key
-fills the captured input without sending and OK does not submit a bound draft. Managed Codex
+fills the captured input without sending. In 0.2.10, OK previews the current bound input and a
+separate OK confirms submission; it never submits the old workspace draft. Managed Codex
 navigation retains its dedicated preset; actual device calibration and target checks still apply.
 
 | Button | Gesture | Intention |

@@ -938,3 +938,60 @@ restart observation, leave action mappings paused, unlock diagram selection, and
 house/menu/OK. That response establishes user-reported authorization, not a passed key test.
 Vibe Remote computer use still returned the same native pipe-closed error after authorization;
 no alternate UI mechanism was used.
+
+After restarting observation the user confirmed correct Home/Menu/OK highlighting, then all
+eight remaining calibrated keys. This establishes user-led in-app diagram acceptance for the
+eleven short presses; exclusive suppression and tool execution remain separate pending tests.
+
+Computer use successfully opened Doubao 0.5.7's separate settings helper. Its microphone was
+initially automatic detection; selected MiRemoteV 2ch and read back the displayed selection.
+The settings show Ctrl hold/release and double-tap hands-free input. No auto-send control was
+visible in the complete settings page. The user reports their usual dictated text stays in chat
+inputs until manually sent. Keep manual triggering and use hold Ctrl during initial acceptance,
+because system Dictation also has double Ctrl assigned. No system shortcut or privacy setting
+was changed. Actual remote-to-provider audio/transcription is still pending.
+
+### Explicit manual submission from the current input
+
+The user requested a remote key to manually confirm sending. Extend the existing OK full-text
+preview/second-confirmation workflow to current-focus mode. Only read the currently focused,
+bound AI input; never reinsert provider text or send retained workspace drafts. Keep real Send/
+Steer checks, capture/provider-completion gates, target/text revalidation and uncertainty guards.
+This explicitly supersedes the earlier blanket prohibition on current-focus manual submission;
+voice release still does not submit. This is implemented in 0.2.10/build 13, with a 60-second
+review limit and per-workspace uncertain-attempt protection across input modes. Focused submission
+keeps runtime AX element identity separate from tree paths and never repairs target focus.
+Tests first failed against the previous behavior; final ToolAdapter 429, controls integration
+96 scenarios/293 assertions and HID 80 assertions passed. External dictation 48, focused input 64,
+Python 30 tests and neutral-config validation also passed. Only fake services were used.
+
+Release/package build passed. Independent expansion confirmed LocalSystem-only /Applications
+installation, no relocation candidates, matching source plist/icon, arm64 and strict ad-hoc
+signature. Final package size is 3,518,169 bytes; SHA-256 is
+503ba91ffcc44e6a21402bf0169f04d7e7be9e54e61a95d22eb28d4e38338533.
+An earlier package was moved to a separate pre-review directory before the final race checks;
+only ~/Downloads/VibeRemote-0.2.10-System-20261015/VibeRemote-0.2.10-arm64.pkg is the final artifact.
+The app remains installed as 0.2.9; no in-memory draft was discarded or update installation claimed.
+
+### Keyboard-seize failure isolated from Input Monitoring
+
+The next screenshot shows Input Monitoring granted and one selected interface, but exclusive
+open failed and mappings remained off. A read-only process check found one VibeRemote instance
+and no competing remote bridge/observer. The existing independent-device manager and close-before-
+reopen path do not establish self-contention. A narrowly filtered read-only IOHID log query found
+six VibeRemote opens returning `0xe00002c1` (NotPrivileged), not ExclusiveAccess.
+
+Apple's IOHID source separately gates keyboard seizure on privileged-client identity; the SDK
+labels administrator privilege as root. Ordinary Input Monitoring or AX grants are insufficient
+for that check. Added safe OS error classification without changing seizure policy or introducing
+a fallback. No daemon, entitlement, root GUI, privacy reset or system authorization was installed.
+Actual exclusive operation remains blocked; a scoped, authenticated and system-approved helper
+requires further implementation. No raw system logs or device identifiers were added to Git.
+
+### First prepared Doubao end-to-end attempt
+
+The user confirmed third-party preparation succeeded. Guided a blank TextEdit test using
+physical Ctrl hold, then remote voice hold, remote release, a short drain interval and Ctrl
+release. The user reported a recording indication but no text. This confirms neither delivery
+to the virtual input nor recognition. Requested the remote meter/duration observation and the
+app's forwarding status before another attempt. No audio or transcript was saved.

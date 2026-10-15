@@ -105,9 +105,15 @@ struct SettingsViews: View {
                     Text("动作菜单").font(.title2.bold())
                     ForEach(Array(controls.menuActions.enumerated()), id: \.element) { index, action in
                         Button { controls.showingActions = false; controls.perform(action) } label: {
-                            Label(action.label, systemImage: controls.pickerIndex == index ? "arrow.right.circle.fill" : "circle")
+                            Label(voice.inputDestination == .currentFocus && action == .sendDraft ? "预览发送当前输入" : action.label,
+                                  systemImage: controls.pickerIndex == index ? "arrow.right.circle.fill" : "circle")
                         }
-                            .disabled(controls.safety.blockReason(for: action) != nil)
+                            .disabled((voice.inputDestination == .currentFocus && [.insertDraft, .sendDraft].contains(action)) ||
+                                      controls.safety.blockReason(for: action) != nil)
+                    }
+                    if voice.inputDestination == .currentFocus {
+                        Text("确认发送请先关闭菜单，回到已绑定输入框，再按遥控器确认键。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     Button("关闭") { controls.showingActions = false }.keyboardShortcut(.cancelAction)
                 }.padding(24).frame(minWidth: 300)
@@ -121,12 +127,23 @@ struct SettingsViews: View {
                     Image(systemName: "cursorarrow.rays").foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("当前光标所在输入框").font(.headline)
-                        Text("点击目标输入框再按住说话；只填入文字，不发送。原工作区草稿独立保留。")
+                        Text("语音只填入文字。结束听写后，在已绑定输入框按确认键预览，再按一次才发送。原工作区草稿独立保留。")
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer()
                     Button("输入设置") { controls.page = .voiceInput }
+                }
+                HStack {
+                    Picker("确认发送工作区", selection: Binding(get: { voice.workspaceID }, set: controls.selectWorkspace)) {
+                        Text("未绑定 · 仅语音输入").tag(nil as UUID?)
+                        ForEach(controls.settings.workspaces) { Text($0.name).tag(Optional($0.id)) }
+                    }.frame(maxWidth: 380).disabled(!controls.canEdit)
+                    Spacer()
+                    Button("配置编程工具") { controls.page = .tools }
+                }
+                if controls.workspace?.codexConversation != nil {
+                    CodexSessionNavigationView(model: controls)
                 }
             } else {
             HStack(spacing: 12) {

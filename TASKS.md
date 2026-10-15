@@ -24,11 +24,37 @@ coordinated 60-second observation recorded six real down/up pairs through the pr
 receiver. Subsequent OK and four-key checks, followed by a house/menu/house control sequence,
 established 11 distinct short-press mappings. Home is 74 and Menu is 101; the earlier Menu=74
 label was superseded. A later screenshot showed the app's Input Monitoring permission denied;
-the user subsequently confirmed it is authorized. In-app observation/highlighting is being retested;
+the user subsequently confirmed it is authorized. All eleven in-app button highlights then passed;
 exclusive control and mapped actions remain unverified. The pairing-loss cause is unresolved.
 GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803fb52
 (run 38179199650) completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
+
+## 0.2.10 — explicit current-input submission
+
+User requested a physical key for manual submission after dictation. Keep OK's existing
+two-step full-text review: first press previews the current bound input, second confirms Send
+or an available Codex Steer. Voice release itself never submits.
+
+- [x] Add focused-only preview and guarded confirmation without re-inserting provider text.
+- [x] Invalidate changed targets/text/destination, active dictation, expired reviews or lost devices;
+  block uncertain submission retries. Preserve existing draft-mode behavior.
+- [x] Update setup guidance and pass final regression checks: ToolAdapter 429 assertions;
+  controls integration 96 scenarios/293 assertions; HID 80; external dictation 48; focused input 64;
+  Python 30 tests and neutral configuration validation. All fake-driver regressions passed.
+- [x] Build and independently expand 0.2.10/build 13: LocalSystem only, /Applications,
+  nonrelocation, source icon/plist identity, arm64 and strict ad-hoc signature.
+- [ ] Install after preserving drafts, then perform user-led real Codex submission acceptance.
+- [ ] Resolve the separate keyboard-seize privilege requirement before enabling physical mappings.
+  On this Mac, VibeRemote's IOHID open logs show six `0xe00002c1` (NotPrivileged) results;
+  no competing remote client was observed. Input Monitoring and observation/highlighting pass.
+  0.2.10 adds exact failure classification but does not grant privilege or ship a helper.
+  A narrowly scoped, authenticated, system-approved helper needs separate design/implementation.
+
+Package: ~/Downloads/VibeRemote-0.2.10-System-20261015/VibeRemote-0.2.10-arm64.pkg
+(3,518,169 bytes; app ad-hoc signed, installer unsigned/unnotarized).
+SHA-256: 503ba91ffcc44e6a21402bf0169f04d7e7be9e54e61a95d22eb28d4e38338533.
+Still installed/running: 0.2.9/build 12. Updating has not been reported as installed.
 
 ## 0.2.9 — current-focus voice input
 
@@ -60,8 +86,11 @@ This supersedes the earlier draft-first preference below; old configuration reta
 - [x] User imported the local profile; live settings match the validated Doubao/current-focus/
   manual file exactly. User reports double-click or hold Ctrl and an available 2ch microphone
   choice; actual trigger behavior and microphone selection remain unverified.
-- [ ] Verify Doubao microphone/trigger/disabled-auto-send in its own UI. The applied Vibe Remote
-  profile and detected devices do not establish applied provider settings or actual recording.
+- [x] Inspect Doubao 0.5.7's actual settings helper: Ctrl hold/release and double-tap trigger shown.
+  Select MiRemoteV 2ch instead of automatic detection and verify the displayed selection.
+  No auto-send option was visible; user reports dictated text remains in the chat input until
+  manually sent. System Dictation also uses double Ctrl, so use hold Ctrl for the initial test.
+  Actual remote-to-Doubao transcription remains unverified.
 - [x] User-operated voice hold: user confirms changing level and increasing duration, with normal
   stop on release while the third-party provider stayed stopped/unprepared. Screenshot shows
   capture ended with remote ready. This verifies basic remote audio separately from transcription.
@@ -84,19 +113,19 @@ This supersedes the earlier draft-first preference below; old configuration reta
   retain workspace presets and the applied Doubao/current-focus/manual profile.
 - [x] User imported the corrected eleven-key file; read-only comparison confirms active settings
   semantically match its decoded JSON, preserving Doubao/current-focus/manual. User reports starting app observation.
-- [ ] Check the app's physical button highlighting, then verify power/voice/hold,
-  exclusive suppression and voice coexistence before enabling coding-tool actions.
-  User reported all three diagram tests unresponsive. Active eleven-key config and current
-  descriptor match; screenshot establishes Input Monitoring denied and disabled discovery.
-  System Input Monitoring list did not contain Vibe Remote; user was directed to add/enable
-  the system app, refresh permission and restart discovery/observation. User now confirms
-  “输入监控已授权”; the three-key diagram test has been requested again, with actions paused.
+- [x] After user-authorized Input Monitoring and restarted observation, user confirms Home/Menu/OK
+  highlight correctly, then confirms the other eight keys. All eleven diagram mappings now pass.
+  Earlier unresponsive tests had a denied permission and paused/released HID; no remap was needed.
+- [ ] Verify power/hold, exclusive suppression and voice coexistence before enabling coding-tool actions.
   A later 180-second window remained observing with one interface and no removal/reset,
   but received zero callbacks; actual press timing for that window was not confirmed.
 - [ ] Real plain-editor insertion/selection, focus-loss retention, Doubao microphone/shortcut
   and provider completion test. Codex/Claude/WorkBuddy direct input remains unverified.
+  First user-led plain-editor attempt after preparation showed Doubao's recording indication
+  but produced no text. Awaiting the remote meter/duration and forwarding status to isolate
+  capture, focus validation, virtual audio delivery and provider recognition.
 
-Latest package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-arm64.pkg
+Installed-version package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-arm64.pkg
 (3,486,094 bytes; arm64; app ad-hoc signed, installer unsigned/unnotarized).
 SHA-256: 5d1d56e57c730c39f24a14c67a5f106854e521a8c62101747fe5271030cd8b40.
 Local import: ~/Downloads/VibeRemote-Setup-20261015/settings.doubao-current-focus.json;
@@ -106,10 +135,11 @@ settings.before-eleven-key-calibration-20261015.json as its exact original-setti
 Historical settings.doubao-current-focus-six-keys.json is retained but must not be imported.
 Latest active-settings check semantically matches the corrected eleven-key JSON import. User reports the
 app was paused; subsequent screenshot showed Input Monitoring denied. User subsequently confirmed
-authorization; restored in-app observation still needs verification. Do not infer in-app
+authorization and correct highlighting of all eleven keys after restoring observation. Do not infer in-app
 observation permission from a successful separately authorized diagnostic observer.
 Fresh software suites passed with the counts above. Actual Vibe Remote UI control returned a
-native pipe-closed error; Doubao UI access timed out. Codex computer-use access was explicitly
+native pipe-closed error; Doubao's background app timed out, but its separate settings helper now works.
+Codex computer-use access was explicitly
 denied for safety reasons and was not bypassed. Provider and Codex acceptance require user-led
 observation until a permitted UI channel is available; no successful real input/send is claimed.
 

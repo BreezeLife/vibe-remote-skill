@@ -296,3 +296,27 @@ experimental project APIs are not required by this milestone.
   captures a fresh target, and bound draft insert/send/confirm actions are blocked in direct mode.
 - Native capture remains independent of HID mapping enablement. Real BLE readiness, HID enumeration,
   actual presses, audio frames and successful transcription are separate acceptance observations.
+
+## 2026-10-15 — explicit confirmation key after current-focus dictation
+
+- The user explicitly requested a physical key for manual submission. Keep the existing OK pattern:
+  first press previews the bound AI input's full current text, a separate confirmation submits it.
+  This supersedes the earlier blanket current-focus send block, not the no-automatic-send rule.
+- Voice input remains independent of workspace bindings; remote submission requires a freshly
+  verified bound target. Never reuse workspace draft text or reinsert third-party results.
+- The first preview must observe the already-focused target without activating or focusing it.
+  Return from our preview may activate only that same verified target; focus/text/task changes,
+  ongoing provider preparation, lost device state and expired review block confirmation.
+- Prefer a live, enabled Codex Steer control. Unknown state, terminal/shell targets and uncertain
+  previous submissions never authorize retry or generic Return injection.
+
+## 2026-10-15 — keyboard seizure needs a separate privileged path
+
+- User-authorized Input Monitoring restored all eleven observed key highlights, but exclusive
+  IOHID opens returned `0xe00002c1` (NotPrivileged). No competing remote process was observed.
+  Input Monitoring/AX grants are not evidence of keyboard-seize privilege; do not ask for
+  repeated privacy resets or unpairing to address this error.
+- Retain exact safe OS error codes, release interfaces on failure and leave mapped actions off.
+  Do not substitute unrestricted raw-key pass-through, run the entire GUI as root, or invent
+  private entitlements. A scoped helper with authenticated IPC and explicit system approval
+  is a future implementation requirement; 0.2.10 does not include or register one.

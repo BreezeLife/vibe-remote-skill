@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import VibeRemoteCore
 
 var assertions = 0
@@ -22,6 +23,8 @@ final class FakeHIDDriver: HIDRemoteDriver {
     var closes: [String] = []
     var openIDs = Set<String>()
     var failOpen: String?
+    var failedOpenCode: IOReturn?
+    private(set) var lastOpenErrorCode: IOReturn?
     var duringOpen: (() -> Void)?
     func checkPermission() -> HIDInputPermission { permissionChecks += 1; return access }
     func requestPermission() { permissionRequests += 1 }
@@ -29,14 +32,19 @@ final class FakeHIDDriver: HIDRemoteDriver {
     func stopDiscovery() { discoveryStops += 1 }
     func open(interfaceID: String, exclusive: Bool) -> Bool {
         opens.append((interfaceID, exclusive))
-        if interfaceID == failOpen { return false }
+        lastOpenErrorCode = nil
+        if interfaceID == failOpen { lastOpenErrorCode = failedOpenCode; return false }
         openIDs.insert(interfaceID)
         let action = duringOpen
         duringOpen = nil
         action?()
         return true
     }
-    func close(interfaceID: String) { closes.append(interfaceID); openIDs.remove(interfaceID) }
+    func close(interfaceID: String) {
+        closes.append(interfaceID)
+        openIDs.remove(interfaceID)
+        lastOpenErrorCode = nil
+    }
     func replace(_ next: [HIDRemoteInterface]) { interfaces = next; onInterfacesChanged?(next) }
     func emit(_ id: String = "a", cookie: Int = 1, usage: Int = 40, down: Bool,
               reportID: Int = 1, at: TimeInterval = 1, hold: Bool = true) {
@@ -152,6 +160,51 @@ do {
     driver.onInvalidated?("系统休眠")
     check(!service.isExclusive && driver.openIDs.isEmpty && service.selectedID == nil,
           "sleep releases physical device and clears session selection")
+}
+
+// Error diagnostics carry only OS result codes, never interface or physical IDs.
+for (code, reason) in [
+    (kIOReturnExclusiveAccess, "设备已被独占"),
+    (kIOReturnBusy, "设备正忙"),
+    (kIOReturnNotPrivileged, "系统独占权限不足"),
+    (kIOReturnNotPermitted, "系统拒绝访问"),
+    (kIOReturnUnsupported, "设备不支持"),
+    (kIOReturnUnsupportedMode, "设备不支持"),
+    (kIOReturnError, "系统返回未知错误")
+] {
+    let (service, driver, selected) = setup()
+    driver.failOpen = "b"
+    driver.failedOpenCode = code
+    service.seize(deviceID: selected)
+    let expectedCode = String(format: "0x%08X", UInt32(bitPattern: code))
+    check(service.status.contains(reason) && service.status.contains(expectedCode),
+          "failed seizure explains OS reason and exact code \(expectedCode)")
+    check(!service.isExclusive && !service.isObserving && service.selectedID == nil && driver.openIDs.isEmpty,
+          "diagnostic failure \(expectedCode) releases all interfaces without enabling actions")
+    check(driver.opens.count == 2 && driver.opens.allSatisfy { $0.1 },
+          "diagnostic failure \(expectedCode) never retries or falls back to observation")
+    if code == kIOReturnNotPrivileged {
+        check(service.permission == .granted && service.status.contains("输入监控授权不代表独占权限"),
+              "OS privilege failure is distinct from granted Input Monitoring")
+    }
+    driver.failOpen = nil
+    service.seize(deviceID: selected)
+    check(service.isExclusive && !service.status.contains(expectedCode),
+          "later successful seizure cannot display a stale OS failure")
+}
+
+do {
+    let (service, driver, selected) = setup()
+    driver.failOpen = "a"
+    service.startObservation(deviceID: selected)
+    check(service.status == "观察失败；设备已释放",
+          "driver without an OS result keeps an honest generic failure")
+    driver.failedOpenCode = kIOReturnNotPermitted
+    service.startObservation(deviceID: selected)
+    check(service.status.contains("系统拒绝访问") && service.status.contains("0xE00002E2"),
+          "observation failures also preserve the OS diagnostic")
+    check(!service.isObserving && !service.isExclusive && driver.openIDs.isEmpty,
+          "failed observation remains released")
 }
 
 do {

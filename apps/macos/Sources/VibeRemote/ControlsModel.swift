@@ -24,6 +24,13 @@ final class ControlsModel: ObservableObject {
         let confirmation: ToolSendConfirmation
         let review: DraftReview
         let workspace: WorkspaceProfile
+        let destination: VoiceInputDestination
+        let expiresAt: TimeInterval?
+        init(confirmation: ToolSendConfirmation, review: DraftReview, workspace: WorkspaceProfile,
+             destination: VoiceInputDestination = .draft, expiresAt: TimeInterval? = nil) {
+            self.confirmation = confirmation; self.review = review; self.workspace = workspace
+            self.destination = destination; self.expiresAt = expiresAt
+        }
     }
 
     let voice: RemoteModel
@@ -31,6 +38,7 @@ final class ControlsModel: ObservableObject {
     let adapter: ToolAdapter
     private let store: NativeSettingsStore
     private let codexCatalog: CodexConversationListing
+    private let currentTime: () -> TimeInterval
     private var codexCatalogProfiles: [WorkspaceProfile] = []
     private var lastCodexSession: [String: UUID] = [:]
     @Published private(set) var codexSetupStatus = "点击一键配置，读取本机 Codex 会话并准备按键方案。"
@@ -71,16 +79,21 @@ final class ControlsModel: ObservableObject {
     private var uncertainCodexInsertion = Set<UUID>()
     private var codexSubmission: [UUID: (draft: String, confirmed: Bool)] = [:]
     private var codexClearedAfterSubmission = Set<UUID>()
+    // A mutation can succeed despite an AX/readback error. Unknown outcomes stay
+    // locked for this workspace; a changed input does not erase that uncertainty.
+    private var currentInputSubmissions: [UUID: (text: String, confirmed: Bool)] = [:]
     private var activeOperation: Task<Void, Never>?
     private var operationGeneration = 0
     private var operationReview: DraftReview?
 
     init(voice: RemoteModel, store: NativeSettingsStore = NativeSettingsStore(),
          hid: HIDRemoteInputService? = nil, adapter: ToolAdapter? = nil,
-         showWindow: (() -> Void)? = nil, codexCatalog: CodexConversationListing? = nil) {
+         showWindow: (() -> Void)? = nil, codexCatalog: CodexConversationListing? = nil,
+         currentTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.voice = voice
         self.store = store
         self.codexCatalog = codexCatalog ?? CodexConversationCatalogService()
+        self.currentTime = currentTime
         self.showWindowOverride = showWindow
         self.hid = hid ?? HIDRemoteInputService()
         self.adapter = adapter ?? ToolAdapter()
@@ -111,8 +124,7 @@ final class ControlsModel: ObservableObject {
                     self.learningTask?.cancel()
                 }
                 if let pending = self.pendingSend,
-                   !pending.review.matches(workspaceID: self.voice.workspaceID,
-                                           draft: self.voice.draft.text, busy: self.voice.isBusy) {
+                   !self.reviewIsCurrent(pending) {
                     self.pendingSend = nil
                     self.status = "草稿或目标已变化，请重新预览后再发送。"
                 }
@@ -136,6 +148,26 @@ final class ControlsModel: ObservableObject {
         ActionSafety(exclusiveDevice: hid.isExclusive, suppressionConfirmed: suppressionConfirmed,
                      busy: voice.isBusy, operationInProgress: operationInProgress,
                      hasWorkspace: workspace != nil, hasDraft: voice.canCopy)
+    }
+
+    /// Current-input submission reads the target itself; a local draft is neither
+    /// required nor evidence that provider recording has finished.
+    var currentInputSendBlockReason: String? {
+        if operationInProgress { return "上一项操作尚未结束。" }
+        if voice.isBusy { return "请先结束收音；第三方输入法须确认已结束并关闭本次准备，再预览发送。" }
+        if !voice.ready { return "遥控器语音连接尚未就绪，请重新连接后再预览。" }
+        if workspace?.binding == nil { return "请先选择并绑定当前编程工具的会话输入框。" }
+        if !hid.isExclusive || !suppressionConfirmed {
+            return "请先独占接管遥控器，并验证本次按键不穿透且语音正常。"
+        }
+        return nil
+    }
+
+    private func reviewIsCurrent(_ preview: SendPreview) -> Bool {
+        preview.destination == voice.inputDestination && workspace == preview.workspace &&
+        preview.review.matches(workspaceID: voice.workspaceID, draft: voice.draft.text, busy: voice.isBusy) &&
+        (preview.destination != .currentFocus || voice.ready) &&
+        (preview.expiresAt.map { currentTime() <= $0 } ?? true)
     }
 
     func refreshTools() { installedTools = adapter.installedTools(); objectWillChange.send() }
@@ -366,6 +398,7 @@ final class ControlsModel: ObservableObject {
     }
 
     private func requireCodexInputReady(_ profile: WorkspaceProfile, draft: String) throws {
+        try requireCurrentInputSubmissionReady(profile)
         guard !uncertainCodexInsertion.contains(profile.id) else {
             throw ControlError.message("上次插入结果尚未确认；已阻止再次追加。请在 Codex 检查并手动处理保留的文字。")
         }
@@ -697,10 +730,16 @@ final class ControlsModel: ObservableObject {
     }
     func perform(_ action: RemoteAction) {
         if action == .none { return }
-        if voice.inputDestination == .currentFocus, [.insertDraft, .sendDraft, .confirmInput].contains(action) {
-            pendingSend = nil
-            status = "当前焦点模式只填入语音文字；请在目标应用中自行发送。"
-            return
+        if voice.inputDestination == .currentFocus {
+            if action == .insertDraft {
+                pendingSend = nil
+                status = "当前焦点模式不插入工作区草稿；语音文字由当前输入方式填入。"
+                return
+            }
+            if action == .sendDraft || action == .confirmInput {
+                if pendingSend != nil { confirmSend() } else { prepareCurrentInputSend() }
+                return
+            }
         }
         if let reason = safety.blockReason(for: action) {
             status = reason
@@ -792,6 +831,49 @@ final class ControlsModel: ObservableObject {
         }
     }
 
+    private func requireCurrentInputSubmissionReady(_ profile: WorkspaceProfile, text: String? = nil) throws {
+        if codexSubmission[profile.id]?.confirmed == false {
+            throw ControlError.message("上次提交结果尚未确认，已阻止再次提交；请在目标工具中检查并手动处理。")
+        }
+        guard let previous = currentInputSubmissions[profile.id] else { return }
+        guard previous.confirmed else {
+            throw ControlError.message("上次提交结果尚未确认，已阻止再次提交；更换文字不会解除。请在目标工具中检查并手动处理。")
+        }
+        if text == previous.text {
+            throw ControlError.message("这份输入全文已经提交，已阻止重复发送。请在目标工具中输入新的指令后重新预览。")
+        }
+    }
+
+    private func prepareCurrentInputSend() {
+        if let reason = currentInputSendBlockReason { status = reason; return }
+        guard voice.inputDestination == .currentFocus, let profile = workspace else { return }
+        let review = DraftReview(workspaceID: profile.id, draft: voice.draft.text)
+        installOperationGuard(profile, review: review, requiresDevice: true)
+        operationInProgress = true
+        activeOperation = Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishOperation() }
+            do {
+                try self.requireCurrentInputSubmissionReady(profile)
+                let confirmation = try await self.adapter.prepareFocusedSend(for: profile)
+                try Task.checkCancellation()
+                let preview = SendPreview(confirmation: confirmation, review: review, workspace: profile,
+                                          destination: .currentFocus, expiresAt: self.currentTime() + 60)
+                guard self.reviewIsCurrent(preview), self.hid.isExclusive, self.suppressionConfirmed else {
+                    throw ControlError.message("当前输入、工作区或遥控器状态已变化，请重新预览。")
+                }
+                try self.requireCurrentInputSubmissionReady(profile, text: confirmation.text)
+                self.pendingSend = preview
+                self.status = confirmation.kind == .steer ? "已读取当前输入全文；再次确认后补充当前任务。" : "已读取当前输入全文；再次确认后发送。"
+                self.recordCheck(.sendDraft, profile: profile, result: "当前输入预览通过；未插入文字、未提交。")
+                self.showWindow()
+            } catch {
+                self.status = "无法预览当前输入：" + error.localizedDescription
+                self.recordCheck(.sendDraft, profile: profile, result: "当前检查失败：" + error.localizedDescription)
+            }
+        }
+    }
+
     private func prepareSend() {
         guard let profile = workspace else { return }
         guard let inserted = insertion[profile.id], inserted.draft == voice.draft.text else {
@@ -806,8 +888,10 @@ final class ControlsModel: ObservableObject {
             guard let self else { return }
             defer { self.finishOperation() }
             do {
+                try self.requireCurrentInputSubmissionReady(profile)
                 if profile.codexConversation != nil { try self.requireCodexInputReady(profile, draft: self.voice.draft.text) }
                 let confirmation = try await self.adapter.prepareSend(for: profile)
+                try self.requireCurrentInputSubmissionReady(profile, text: confirmation.text)
                 guard confirmation.text == inserted.text,
                       review.matches(workspaceID: self.voice.workspaceID, draft: self.voice.draft.text, busy: self.voice.isBusy),
                       self.hid.isExclusive, self.suppressionConfirmed else {
@@ -823,30 +907,34 @@ final class ControlsModel: ObservableObject {
         }
     }
     func confirmSend() {
-        guard voice.inputDestination == .draft else {
-            pendingSend = nil
-            status = "当前焦点模式不会发送，请在目标应用中自行发送。"
-            return
-        }
         guard let pending = pendingSend else { return }
         pendingSend = nil
-        guard let current = workspace, current == pending.workspace,
-              pending.review.matches(workspaceID: voice.workspaceID, draft: voice.draft.text, busy: voice.isBusy),
-              safety.blockReason(for: .sendDraft) == nil else { status = "确认已失效，请重新预览。"; return }
-        installOperationGuard(current, review: pending.review, requiresDevice: true)
+        let currentInput = pending.destination == .currentFocus
+        guard let current = workspace, reviewIsCurrent(pending),
+              (currentInput ? currentInputSendBlockReason : safety.blockReason(for: .sendDraft)) == nil else {
+            status = "确认已失效，请重新预览。"; return
+        }
+        installOperationGuard(current, review: pending.review, requiresDevice: true, expiresAt: pending.expiresAt)
         operationInProgress = true
         activeOperation = Task { [weak self] in
             guard let self else { return }
             defer { self.finishOperation() }
             do {
-                if current.codexConversation != nil { try self.requireCodexInputReady(current, draft: pending.review.draft) }
+                try self.requireCurrentInputSubmissionReady(current, text: pending.confirmation.text)
+                if !currentInput, current.codexConversation != nil { try self.requireCodexInputReady(current, draft: pending.review.draft) }
                 let outcome = try await self.adapter.confirmSend(pending.confirmation, for: current, willSubmit: { [weak self] in
-                    guard current.codexConversation != nil else { return }
-                    self?.codexSubmission[current.id] = (pending.review.draft, false)
-                    self?.codexClearedAfterSubmission.remove(current.id)
+                    if currentInput {
+                        self?.currentInputSubmissions[current.id] = (pending.confirmation.text, false)
+                    } else if current.codexConversation != nil {
+                        self?.codexSubmission[current.id] = (pending.review.draft, false)
+                        self?.codexClearedAfterSubmission.remove(current.id)
+                    }
                 })
-                if current.codexConversation != nil { self.codexSubmission[current.id] = (pending.review.draft, outcome.confirmed) }
-                self.insertion[current.id] = nil
+                if currentInput { self.currentInputSubmissions[current.id] = (pending.confirmation.text, outcome.confirmed) }
+                else {
+                    if current.codexConversation != nil { self.codexSubmission[current.id] = (pending.review.draft, outcome.confirmed) }
+                    self.insertion[current.id] = nil
+                }
                 self.status = outcome.message
                 if current.codexConversation != nil { self.codexChecks["submission"] = outcome.message }
                 self.recordCheck(.sendDraft, profile: current, result: (outcome.confirmed ? "上次观察到任务开始：" : "操作结果未确认：") + outcome.message)
@@ -870,13 +958,16 @@ final class ControlsModel: ObservableObject {
         activeOperation?.cancel()
         learningTask?.cancel()
     }
-    private func installOperationGuard(_ profile: WorkspaceProfile, review: DraftReview?, requiresDevice: Bool = false) {
+    private func installOperationGuard(_ profile: WorkspaceProfile, review: DraftReview?, requiresDevice: Bool = false, expiresAt: TimeInterval? = nil) {
         operationGeneration += 1
         let generation = operationGeneration
+        let destination = voice.inputDestination
         operationReview = review
         adapter.authorizeOperation = { [weak self] in
             guard let self, self.operationGeneration == generation, !self.voice.isBusy,
-                  self.workspace == profile,
+                  self.workspace == profile, self.voice.inputDestination == destination,
+                  expiresAt.map({ self.currentTime() <= $0 }) ?? true,
+                  !requiresDevice || destination != .currentFocus || self.voice.ready,
                   review?.matches(workspaceID: self.voice.workspaceID, draft: self.voice.draft.text, busy: self.voice.isBusy) ?? true,
                   !requiresDevice || (self.hid.isExclusive && self.suppressionConfirmed) else {
                 throw ControlError.message("操作前草稿、目标或设备状态已变化，动作已取消。")

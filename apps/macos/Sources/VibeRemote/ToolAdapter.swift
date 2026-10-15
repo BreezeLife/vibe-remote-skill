@@ -42,6 +42,8 @@ struct ToolAXNode {
     var subrole: String? = nil
     var modal: Bool? = nil
     var children: [ToolAXNode] = []
+    // Runtime-only AX identity, distinct from the structural tree path used by id.
+    var runtimeIdentity: String? = nil
 }
 
 struct ToolAXObservation {
@@ -106,6 +108,15 @@ struct ToolSendConfirmation: Identifiable {
     fileprivate let control: AXLocator
     fileprivate let workspace: WorkspaceProfile
     fileprivate let application: ToolApplication
+    fileprivate var focusedIdentity: ToolFocusedSendIdentity? = nil
+}
+
+fileprivate struct ToolFocusedSendIdentity: Equatable {
+    let processID: Int32
+    let windowNodeID: String
+    let inputNodeID: String
+    let windowIdentity: String
+    let inputIdentity: String
 }
 
 struct ToolActionOutcome {
@@ -409,14 +420,62 @@ struct ToolCapability: Identifiable {
         return confirmation
     }
 
+    /// Preview only the bound input which is already focused. Provider output is never
+    /// copied from a local draft, and preparation never activates or repairs focus.
+    func prepareFocusedSend(for workspace: WorkspaceProfile) async throws -> ToolSendConfirmation {
+        pendingConfirmation = nil
+        try authorizeMutation()
+        let target = try verified(workspace, requireFocusedInput: true)
+        try rejectModal(target.observation)
+        let identity = try focusedIdentity(target)
+        let submission = try readySubmission(target, workspace: workspace)
+        let text = try driver.value(of: target.input)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw fail("目标 AI 输入框为空。") }
+        let current = try verified(workspace, requireFocusedInput: true)
+        try rejectModal(current.observation)
+        guard current.application == target.application, try focusedIdentity(current) == identity,
+              try driver.value(of: current.input) == text else {
+            throw fail("当前输入位置或全文在预览时已改变，请重新检查。")
+        }
+        let currentSubmission = try readySubmission(current, workspace: workspace)
+        guard currentSubmission.kind == submission.kind, currentSubmission.locator == submission.locator else {
+            throw fail("提交方式或控件在预览时已变化，请重新检查。")
+        }
+        try authorizeMutation()
+        let confirmation = ToolSendConfirmation(id: UUID(), text: text, workspaceID: workspace.id,
+                                               workspaceName: workspace.name, kind: submission.kind,
+                                               control: submission.locator, workspace: workspace,
+                                               application: target.application, focusedIdentity: identity)
+        pendingConfirmation = confirmation.id
+        return confirmation
+    }
+
     func confirmSend(_ confirmation: ToolSendConfirmation, for workspace: WorkspaceProfile, willSubmit: (() -> Void)? = nil) async throws -> ToolActionOutcome {
         guard pendingConfirmation == confirmation.id else { throw fail("发送确认已失效，请重新预览。") }
         // Consume before any await: cancellation, errors and repeated callbacks cannot reuse approval.
         pendingConfirmation = nil
         guard confirmation.workspace == workspace else { throw fail("工作区或绑定已改变，请重新预览。") }
-        _ = try await activated(workspace)
-        try focusInput(workspace)
-        let target = try verified(workspace, requireFocusedInput: true)
+        let target: Target
+        if confirmation.focusedIdentity != nil {
+            // Our own preview can be frontmost, but no unrelated application may be
+            // displaced. Recheck the background target before any activation.
+            let ownPID = ProcessInfo.processInfo.processIdentifier
+            let before = try verified(workspace, requireFocusedInput: true, allowedPreviewPID: ownPID)
+            try requireFocusedConfirmation(confirmation, target: before, workspace: workspace)
+            let current = try verified(workspace, requireFocusedInput: true, allowedPreviewPID: ownPID)
+            try requireFocusedConfirmation(confirmation, target: current, workspace: workspace)
+            if current.observation.frontmostPID != current.observation.processID {
+                try authorizeMutation()
+                try await driver.activate(current.application)
+                try authorizeMutation()
+            }
+            target = try verified(workspace, requireFocusedInput: true)
+            try requireFocusedConfirmation(confirmation, target: target, workspace: workspace)
+        } else {
+            _ = try await activated(workspace)
+            try focusInput(workspace)
+            target = try verified(workspace, requireFocusedInput: true)
+        }
         guard target.application == confirmation.application else { throw fail("应用版本、路径或进程已改变，请重新预览。") }
         let submission = try readySubmission(target, workspace: workspace)
         guard submission.kind == confirmation.kind, submission.locator == confirmation.control else {
@@ -425,9 +484,13 @@ struct ToolCapability: Identifiable {
         guard try driver.value(of: target.input) == confirmation.text else { throw fail("待发送全文已改变，请重新预览。") }
         if confirmation.kind == .steer {
             // Steer is an explicit UI action, never an approval or a configured generic Send key.
-            try authorizeMutation()
-            willSubmit?()
-            try driver.perform("AXPress", on: submission.control)
+            if confirmation.focusedIdentity != nil {
+                try submitFocusedConfirmation(confirmation, workspace: workspace, willSubmit: willSubmit)
+            } else {
+                try authorizeMutation()
+                willSubmit?()
+                try driver.perform("AXPress", on: submission.control)
+            }
             do {
                 let after = try verified(workspace)
                 let previous = flattened(after.window).map(\.node).filter { sameIdentity($0, confirmation.control) }
@@ -438,7 +501,11 @@ struct ToolCapability: Identifiable {
             } catch { /* An uncertain result never retries the action. */ }
             return ToolActionOutcome(message: "已触发引导，但尚未确认工具接收；请在工具中检查，勿自动重发。", confirmed: false)
         }
-        try execute(.sendDraft, control: submission.control, target: target, workspace: workspace, willMutate: willSubmit)
+        if confirmation.focusedIdentity != nil {
+            try submitFocusedConfirmation(confirmation, workspace: workspace, willSubmit: willSubmit)
+        } else {
+            try execute(.sendDraft, control: submission.control, target: target, workspace: workspace, willMutate: willSubmit)
+        }
         // No retry if AXPress succeeds but the outcome is unknown.
         do {
             let after = try verified(workspace)
@@ -508,6 +575,50 @@ struct ToolCapability: Identifiable {
         let window: ToolAXNode
         let input: ToolAXNode
     }
+    private func focusedIdentity(_ target: Target) throws -> ToolFocusedSendIdentity {
+        guard let window = target.window.runtimeIdentity, !window.isEmpty,
+              let input = target.input.runtimeIdentity, !input.isEmpty else {
+            throw fail("无法验证当前窗口或输入框的实时身份，未准备发送。")
+        }
+        return ToolFocusedSendIdentity(processID: target.observation.processID,
+                                       windowNodeID: target.window.id, inputNodeID: target.input.id,
+                                       windowIdentity: window, inputIdentity: input)
+    }
+    private func requireFocusedConfirmation(_ confirmation: ToolSendConfirmation, target: Target,
+                                            workspace: WorkspaceProfile) throws {
+        try rejectModal(target.observation)
+        guard target.application == confirmation.application,
+              try focusedIdentity(target) == confirmation.focusedIdentity else {
+            throw fail("预览后应用、窗口或输入框已变化，请重新预览。")
+        }
+        let submission = try readySubmission(target, workspace: workspace)
+        guard submission.kind == confirmation.kind, submission.locator == confirmation.control else {
+            throw fail("提交方式或控件已变化，请重新预览并确认。")
+        }
+        guard try driver.value(of: target.input) == confirmation.text else {
+            throw fail("待发送全文已改变，请重新预览。")
+        }
+    }
+    private func submitFocusedConfirmation(_ confirmation: ToolSendConfirmation, workspace: WorkspaceProfile,
+                                           willSubmit: (() -> Void)?) throws {
+        // Authorization can invalidate a preview. Resolve the live input and control
+        // after that final boundary; never submit using the earlier snapshot.
+        try authorizeMutation()
+        let target = try verified(workspace, requireFocusedInput: true)
+        try requireFocusedConfirmation(confirmation, target: target, workspace: workspace)
+        let submission = try readySubmission(target, workspace: workspace)
+        if submission.kind == .send, let shortcut = workspace.shortcuts.first(where: { $0.action == .sendDraft }) {
+            try verifiedShortcut(shortcut, on: submission.control)
+            // AX reads may take time; the coordinator's lease must still be valid.
+            try authorizeMutation()
+            willSubmit?()
+            try driver.pressShortcut(shortcut, processID: target.observation.processID)
+        } else {
+            try authorizeMutation()
+            willSubmit?()
+            try driver.perform("AXPress", on: submission.control)
+        }
+    }
     private func fail(_ reason: String) -> ToolAdapterError { ToolAdapterError(reason) }
     private func authorizeMutation() throws {
         try Task.checkCancellation()
@@ -525,10 +636,12 @@ struct ToolCapability: Identifiable {
         guard app.bundleIdentifier == workspace.bundleIdentifier, !app.version.isEmpty else { throw fail("应用身份或版本无法验证。") }
         return app
     }
-    private func observed(_ app: ToolApplication) throws -> ToolAXObservation {
+    private func observed(_ app: ToolApplication, allowedPreviewPID: Int32? = nil) throws -> ToolAXObservation {
         let observation = try driver.snapshot(app)
         guard observation.complete else { throw fail("辅助功能树过大或读取不完整，无法排除歧义。") }
-        guard observation.frontmostPID == observation.processID, app.processID == observation.processID else {
+        let previewIsFrontmost = allowedPreviewPID.map { observation.frontmostPID == $0 } ?? false
+        guard observation.frontmostPID == observation.processID || previewIsFrontmost,
+              app.processID == observation.processID else {
             throw fail("目标应用尚未成为前台进程，操作已阻止。")
         }
         return observation
@@ -546,11 +659,12 @@ struct ToolCapability: Identifiable {
         guard matches[0].id == observation.focusedWindowID else { throw fail("当前窗口不是绑定窗口，请在目标应用中选择正确窗口。") }
         return matches[0]
     }
-    private func verified(_ workspace: WorkspaceProfile, requireFocusedInput: Bool = false) throws -> Target {
+    private func verified(_ workspace: WorkspaceProfile, requireFocusedInput: Bool = false,
+                          allowedPreviewPID: Int32? = nil) throws -> Target {
         let app = try application(for: workspace)
         guard let binding = workspace.binding else { throw fail("请先学习输入框和会话标识。") }
         guard binding.appVersion == app.version else { throw fail("应用版本已改变，旧绑定已停用，请重新学习。") }
-        let observation = try observed(app)
+        let observation = try observed(app, allowedPreviewPID: allowedPreviewPID)
         let window = try boundWindow(binding.windowTitle, observation)
         let input = try resolve(binding.input, in: window, purpose: "输入框")
         try requireInput(input, in: window)
@@ -797,6 +911,9 @@ struct ToolCapability: Identifiable {
 // Constructing this backend is inert. Permissions are requested only by requestPermission().
 @MainActor final class SystemToolAXDriver: ToolAXDriver {
     private var elements: [String: AXUIElement] = [:]
+    // Only the previous snapshot's window/text elements survive to identify the next
+    // snapshot. The walk is bounded at 4096 nodes; old buckets are replaced each time.
+    private var focusIdentities: [CFHashCode: [(element: AXUIElement, id: String)]] = [:]
     private var snapshotDeadline: TimeInterval?
     private var snapshotTimedOut = false
     var isTrusted: Bool { AXIsProcessTrusted() }
@@ -870,6 +987,8 @@ struct ToolCapability: Identifiable {
         let root = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(root, 0.1)
         elements.removeAll(keepingCapacity: true)
+        let previousFocusIdentities = focusIdentities
+        focusIdentities.removeAll(keepingCapacity: true)
         guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else {
             throw ToolAdapterError("应用未提供可读的辅助功能窗口列表。")
         }
@@ -911,6 +1030,13 @@ struct ToolCapability: Identifiable {
             let textRole = ["AXTextArea", "AXTextField", "AXComboBox"].contains(role)
             guard withinSnapshotBudget() else { complete = false; return nil }
             let editable = textRole && !secure && AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
+            var runtimeIdentity: String?
+            if role == "AXWindow" || textRole {
+                let hash = CFHash(element)
+                let identity = previousFocusIdentities[hash]?.first(where: { CFEqual($0.element, element) })?.id ?? UUID().uuidString
+                focusIdentities[hash, default: []].append((element, identity))
+                runtimeIdentity = identity
+            }
             var actionNames: CFArray?
             guard withinSnapshotBudget() else { complete = false; return nil }
             _ = AXUIElementCopyActionNames(element, &actionNames)
@@ -951,7 +1077,8 @@ struct ToolCapability: Identifiable {
                               shortcutKeyCode: virtualKey.map { $0.uint16Value },
                               shortcutModifiers: keyModifiers, scrollPosition: scrollPosition,
                               documentURL: documentURL, url: nodeURL, subrole: subrole,
-                              modal: (attribute(element, kAXModalAttribute) as? NSNumber)?.boolValue, children: built)
+                              modal: (attribute(element, kAXModalAttribute) as? NSNumber)?.boolValue, children: built,
+                              runtimeIdentity: runtimeIdentity)
         }
         let nodes = windows.enumerated().compactMap { walk($0.element, id: "\(pid):\($0.offset)", depth: 0) }
         guard !snapshotTimedOut else { throw ToolAdapterError("辅助功能读取超过两秒预算，检查不完整；本次操作已阻止。") }

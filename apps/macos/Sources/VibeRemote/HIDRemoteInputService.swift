@@ -43,12 +43,18 @@ protocol HIDRemoteDriver: AnyObject {
     var onInterfacesChanged: (([HIDRemoteInterface]) -> Void)? { get set }
     var onValue: ((HIDRemoteValue) -> Void)? { get set }
     var onInvalidated: ((String) -> Void)? { get set }
+    /// Only the most recent failed open's OS result; never device identities.
+    var lastOpenErrorCode: IOReturn? { get }
     func checkPermission() -> HIDInputPermission
     func requestPermission()
     func startDiscovery() throws
     func stopDiscovery()
     func open(interfaceID: String, exclusive: Bool) -> Bool
     func close(interfaceID: String)
+}
+
+extension HIDRemoteDriver {
+    var lastOpenErrorCode: IOReturn? { nil }
 }
 
 /// Lifecycle and all callbacks are main-thread confined. Initialization is inert.
@@ -170,9 +176,11 @@ final class HIDRemoteInputService: ObservableObject {
             }
             let success = driver.open(interfaceID: member.id, exclusive: exclusive)
             guard success, attempt == epoch else {
+                let errorCode = success ? nil : driver.lastOpenErrorCode
                 if success { driver.close(interfaceID: member.id) }
                 reset()
                 status = exclusive ? "未能独占所有接口；映射保持关闭，设备已释放" : "观察失败；设备已释放"
+                if let errorCode { status += "。" + openFailureDescription(errorCode, exclusive: exclusive) }
                 return
             }
             opened.insert(member.id)
@@ -188,6 +196,20 @@ final class HIDRemoteInputService: ObservableObject {
         isExclusive = exclusive
         isObserving = !exclusive
         status = exclusive ? "已独占全部已识别接口；请先完成本次原始按键抑制及语音共存测试" : "仅观察；原始按键仍可能触发系统或当前应用"
+    }
+
+    private func openFailureDescription(_ code: IOReturn, exclusive: Bool) -> String {
+        let reason: String
+        switch code {
+        case kIOReturnExclusiveAccess: reason = "设备已被独占"
+        case kIOReturnBusy: reason = "设备正忙"
+        case kIOReturnNotPrivileged:
+            reason = exclusive ? "系统独占权限不足；输入监控授权不代表独占权限" : "系统访问权限不足"
+        case kIOReturnNotPermitted: reason = "系统拒绝访问"
+        case kIOReturnUnsupported, kIOReturnUnsupportedMode: reason = "设备不支持此访问方式"
+        default: reason = "系统返回未知错误"
+        }
+        return "\(reason)（\(String(format: "0x%08X", UInt32(bitPattern: code)))）"
     }
 
     private func group(_ id: String) -> [HIDRemoteInterface] {
@@ -268,6 +290,7 @@ final class IOKitRemoteDriver: HIDRemoteDriver {
     var onInterfacesChanged: (([HIDRemoteInterface]) -> Void)?
     var onValue: ((HIDRemoteValue) -> Void)?
     var onInvalidated: ((String) -> Void)?
+    private(set) var lastOpenErrorCode: IOReturn?
     private var manager: IOHIDManager?
     private var hidDevices: [String: IOHIDDevice] = [:]
     private var interfaces: [String: HIDRemoteInterface] = [:]
@@ -342,10 +365,15 @@ final class IOKitRemoteDriver: HIDRemoteDriver {
 
     func open(interfaceID: String, exclusive: Bool) -> Bool {
         precondition(Thread.isMainThread)
+        lastOpenErrorCode = nil
         guard checkPermission() == .granted, openOptions[interfaceID] == nil,
               let device = hidDevices[interfaceID] else { return false }
         let options = IOOptionBits(exclusive ? kIOHIDOptionsTypeSeizeDevice : kIOHIDOptionsTypeNone)
-        guard IOHIDDeviceOpen(device, options) == kIOReturnSuccess else { return false }
+        let result = IOHIDDeviceOpen(device, options)
+        guard result == kIOReturnSuccess else {
+            lastOpenErrorCode = result
+            return false
+        }
         openOptions[interfaceID] = options
         IOHIDDeviceRegisterInputValueCallback(device, { context, result, _, value in
             guard let context else { return }

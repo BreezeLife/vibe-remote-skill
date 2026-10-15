@@ -19,7 +19,11 @@ Change the target or interrupt the connection during a hold: native text should 
 Vibe Remote for manual inspection. Do not repeat an uncertain write. For external providers,
 verify the selected virtual microphone, disabled auto-send, actual recording end and exactly
 one provider insertion; explicitly confirm completion before preparing the next hold.
-Confirm old workspace drafts remain intact and bound insert/send/confirm actions are blocked.
+Confirm old workspace drafts remain intact and bound insertion stays blocked. For 0.2.10 manual
+submission, close external preparation, focus the bound AI input, then press OK to preview its
+actual full text and again to submit. First OK must not activate/focus another target, insert or
+send. Test changed text/focus/task/device, expired previews and uncertain outcomes; no retry is
+allowed. This explicit action is separate from voice release and requires live Send/Steer checks.
 Agent-generated keys do not establish physical remote acceptance; observe user-operated keys.
 
 ## Draft/workspace and legacy checks

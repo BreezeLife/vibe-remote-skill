@@ -73,8 +73,10 @@ state and shell prompts block automatic submission. The native app requires
 explicit insertion and full-text send confirmation, plus live workspace and device checks.
 Unsupported AX capabilities preserve the draft for explicit manual copying.
 In current-focus mode, voice input needs no bound workspace: click the desired input, hold and
-release, and inspect the inserted text. Bound draft insertion/submission actions are disabled in
-this mode. Current focus is an input destination only, never authorization to send or run commands.
+release, and inspect the inserted text. The user-requested 0.2.10 extension adds a separate explicit
+OK review/confirmation for the current bound AI input. It never re-inserts provider output or
+submits on voice release; fresh target/text checks and Send/Steer controls remain required.
+Current focus alone is never authorization to send or run commands.
 
 Distinguish implemented behavior, installed artifacts, current connection state and
 physical acceptance. A paired device or saved UUID does not prove a working audio

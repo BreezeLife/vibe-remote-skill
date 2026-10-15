@@ -38,6 +38,15 @@ private final class IntegrationSpeech: SpeechServicing {
     func cancel() {}
 }
 
+private final class IntegrationExternal: ExternalDictationHandling {
+    var isBusy = false { didSet { onChange?() } }
+    var onChange: (() -> Void)?
+    func startCapture(sampleRate: Int) {}
+    func append(samples: [Int16], sampleRate: Int) {}
+    func finishCapture() {}
+    func interrupt() {}
+}
+
 private final class IntegrationHID: HIDRemoteDriver {
     static let descriptor = Data([1, 2, 3])
     static let hash = SHA256.hash(data: descriptor).map { String(format: "%02x", $0) }.joined()
@@ -100,6 +109,8 @@ private final class IntegrationCatalog: CodexConversationListing {
     var openedURLs: [String] = []
     var failAfterWrite = false
     var failPress = false
+    var leaveSubmissionUnconfirmed = false
+    var restoreForegroundOnActivation = false
     var windows = [ToolAXNode(id: "window", role: "AXWindow", label: "Synthetic Project", children: [
         ToolAXNode(id: "input", role: "AXTextArea", identifier: "composer", label: "Message", editable: true,
                    enabled: true, visible: true, contentScopeID: "synthetic-main"),
@@ -128,6 +139,7 @@ private final class IntegrationCatalog: CodexConversationListing {
     func activate(_ application: ToolApplication) async throws {
         activations += 1
         if activationPaused { await withCheckedContinuation { activationContinuation = $0 } }
+        if restoreForegroundOnActivation { frontmostPID = application.processID }
     }
     func resumeActivation() {
         activationPaused = false
@@ -149,19 +161,23 @@ private final class IntegrationCatalog: CodexConversationListing {
     func perform(_ action: String, on node: ToolAXNode) throws {
         presses.append(node.id)
         if failPress { throw NSError(domain: "SyntheticPress", code: 1) }
-        if node.id == "send" { windows[0].children[3].enabled = true; windows[0].children[2].enabled = false; text = "" }
+        if node.id == "send", !leaveSubmissionUnconfirmed { windows[0].children[3].enabled = true; windows[0].children[2].enabled = false; text = "" }
     }
     func pressShortcut(_ shortcut: ActionShortcut, processID: Int32) throws { fatalError("Unexpected shortcut") }
 }
+
+private final class IntegrationClock { var now: TimeInterval = 100 }
 
 @MainActor private final class Fixture {
     let directory: URL
     let store: NativeSettingsStore
     let bluetooth = IntegrationBluetooth()
     let speech = IntegrationSpeech()
+    let external = IntegrationExternal()
     let input = IntegrationHID()
     let ax = IntegrationAX()
     let catalog = IntegrationCatalog()
+    let clock = IntegrationClock()
     let voice: RemoteModel
     let hid: HIDRemoteInputService
     let controls: ControlsModel
@@ -184,9 +200,12 @@ private final class IntegrationCatalog: CodexConversationListing {
             settings.mappings[index].input = HIDBinding(usagePage: 7, usage: usage, reportID: 1, descriptorHash: IntegrationHID.hash)
         }
         try store.save(settings)
-        voice = RemoteModel(bluetooth: bluetooth, speech: speech)
+        voice = RemoteModel(bluetooth: bluetooth, speech: speech, externalInput: external)
         hid = HIDRemoteInputService(driver: input)
-        controls = ControlsModel(voice: voice, store: store, hid: hid, adapter: ToolAdapter(driver: ax, navigationTimeout: 0.02), showWindow: {}, codexCatalog: catalog)
+        ax.windows[0].runtimeIdentity = "synthetic-window-instance"
+        ax.windows[0].children[0].runtimeIdentity = "synthetic-input-instance"
+        let fixtureClock = clock
+        controls = ControlsModel(voice: voice, store: store, hid: hid, adapter: ToolAdapter(driver: ax, navigationTimeout: 0.02), showWindow: {}, codexCatalog: catalog, currentTime: { fixtureClock.now })
         controls.selectWorkspace(first.id)
         voice.replaceDraft("synthetic alpha draft")
     }
@@ -280,18 +299,16 @@ private final class IntegrationCatalog: CodexConversationListing {
             check(f.controls.updateSettings { $0.voiceInput = nil }, "idle can return to legacy built-in mode")
             check(!f.voice.usesExternalInput && f.voice.draft.text == "synthetic alpha draft", "built-in mode retains original draft")
         }
-        await run("current focus destination saves independently and blocks bound draft actions") { f in
+        await run("current focus destination saves independently and blocks bound draft insertion") { f in
             let before = f.controls.settings
             var config = VoiceInputConfiguration(destination: .currentFocus)
             check(f.controls.updateSettings { $0.voiceInput = config }, "direct destination saves")
             check(f.voice.inputDestination == .currentFocus && !f.voice.usesExternalInput, "built-in direct mode applies")
             check(f.voice.draft.text == "synthetic alpha draft" && f.voice.directDraft.text.isEmpty, "bound text is not copied into direct mode")
             f.seize()
-            for action in [RemoteAction.insertDraft, .sendDraft, .confirmInput] {
-                f.controls.perform(action); await settle(f)
-            }
+            f.controls.perform(.insertDraft); await settle(f)
             f.controls.confirmSend(); await settle(f)
-            check(f.ax.writes.isEmpty && f.ax.presses.isEmpty && f.controls.pendingSend == nil, "direct mode cannot insert or send stale bound text")
+            check(f.ax.writes.isEmpty && f.ax.presses.isEmpty && f.controls.pendingSend == nil, "direct mode cannot insert stale bound text")
             config.provider = .typeless
             config.setProfile(VoiceInputProfile(provider: .typeless))
             check(f.controls.updateSettings { $0.voiceInput = config }, "provider can change without destination")
@@ -312,6 +329,183 @@ private final class IntegrationCatalog: CodexConversationListing {
             check(f.controls.updateSettings { $0.voiceInput = VoiceInputConfiguration(destination: .currentFocus) }, "switch destination after review")
             f.controls.confirmSend(); await settle(f)
             check(f.ax.presses.isEmpty && f.controls.pendingSend == nil, "stale preview cannot send after direct mode selection")
+        }
+        func focusedMode(_ f: Fixture, localDraft: String = "old bound draft must stay local") {
+            f.voice.replaceDraft(localDraft)
+            _ = f.controls.updateSettings { $0.voiceInput = VoiceInputConfiguration(destination: .currentFocus) }
+            f.bluetooth.onReady?(true)
+            f.seize()
+            f.ax.text = "provider text already in the current composer"
+        }
+        for action in [RemoteAction.sendDraft, .confirmInput] {
+            await run("current input \(action.rawValue) previews actual text without a local draft or insertion") { f in
+                focusedMode(f, localDraft: "")
+                f.controls.perform(action); await settle(f)
+                check(f.controls.pendingSend?.confirmation.text == f.ax.text, "first OK reads actual composer text even with empty local draft")
+                check(f.ax.writes.isEmpty && f.ax.presses.isEmpty && f.ax.focuses == 0 && f.ax.activations == 0,
+                      "current-input preparation cannot activate, focus, write or send")
+                check(f.voice.draft.text.isEmpty && f.voice.directDraft.text.isEmpty, "preparation does not adopt provider text into either draft")
+            }
+        }
+        await run("current input sends reviewed provider text from own preview and preserves bound draft") { f in
+            focusedMode(f)
+            let original = f.voice.draft.text
+            f.controls.perform(.sendDraft); await settle(f)
+            check(f.controls.pendingSend?.confirmation.text == f.ax.text, "preview is the target text rather than the old bound draft")
+            f.ax.frontmostPID = ProcessInfo.processInfo.processIdentifier
+            f.ax.restoreForegroundOnActivation = true
+            f.controls.confirmSend(); await settle(f)
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses == ["send"] && f.ax.writes.isEmpty && f.ax.focuses == 0, "explicit second confirmation sends once without insertion or focus rewriting")
+            check(f.voice.draft.text == original && f.voice.directDraft.text.isEmpty, "existing drafts remain independent")
+        }
+        for changed in ["text", "focus", "third app", "destination", "capture", "device", "bluetooth", "provider busy", "workspace", "permission", "cancel"] {
+            await run("current input review rejects \(changed) change") { f in
+                focusedMode(f)
+                f.controls.perform(.sendDraft); await settle(f)
+                check(f.controls.pendingSend != nil, "review exists before the invalidating change")
+                switch changed {
+                case "text": f.ax.text = "changed provider text"
+                case "focus": f.ax.focusedNodeID = "anchor"
+                case "third app": f.ax.frontmostPID = 777
+                case "destination": _ = f.controls.updateSettings { $0.voiceInput = nil }
+                case "capture": f.bluetooth.stream(true)
+                case "device": f.input.disconnect()
+                case "bluetooth": f.bluetooth.disconnect()
+                case "provider busy": f.external.isBusy = true
+                case "workspace": f.controls.selectWorkspace(f.second.id)
+                case "permission": f.ax.isTrusted = false
+                default: f.controls.perform(.cancel)
+                }
+                f.controls.confirmSend(); await settle(f)
+                check(f.ax.presses.isEmpty && f.ax.writes.isEmpty && f.ax.focuses == 0, "changed state cannot submit or restore the old focus")
+                check(f.controls.pendingSend == nil, "invalid preview is consumed")
+            }
+        }
+        for reason in ["provider prepared", "provider waiting", "no exclusive", "no suppression", "no workspace", "bluetooth unavailable"] {
+            await run("current input preparation requires \(reason) to be safe") { f in
+                focusedMode(f)
+                switch reason {
+                case "provider prepared", "provider waiting": f.external.isBusy = true
+                case "no exclusive": f.hid.pause()
+                case "no suppression": f.controls.setSuppressionConfirmed(false)
+                case "no workspace": f.controls.selectWorkspace(nil)
+                default: f.bluetooth.disconnect()
+                }
+                f.controls.perform(.sendDraft); await settle(f)
+                check(f.controls.pendingSend == nil && f.ax.presses.isEmpty && f.ax.writes.isEmpty && f.ax.activations == 0,
+                      "blocked state cannot prepare, activate or send")
+            }
+        }
+        for delayed in [false, true] {
+            await run("current input review expiry blocks confirmation including delayed activation \(delayed)") { f in
+                focusedMode(f)
+                f.controls.perform(.sendDraft); await settle(f)
+                check(f.controls.pendingSend != nil, "preview exists before expiry")
+                if delayed {
+                    f.ax.frontmostPID = ProcessInfo.processInfo.processIdentifier
+                    f.ax.restoreForegroundOnActivation = true
+                    f.ax.activationPaused = true
+                    f.controls.confirmSend()
+                    await waitUntil("preview return activation") { f.ax.activationContinuation != nil }
+                    f.clock.now += 61
+                    f.ax.resumeActivation()
+                    await settle(f)
+                } else {
+                    f.clock.now += 61
+                    f.controls.confirmSend(); await settle(f)
+                }
+                check(f.ax.presses.isEmpty && f.ax.writes.isEmpty && f.controls.pendingSend == nil,
+                      "a late confirmation cannot submit even after activation began")
+            }
+        }
+        for changed in ["bluetooth", "provider busy", "text", "focus", "cancel", "input identity"] {
+            await run("current input returning from review rejects late \(changed) change") { f in
+                focusedMode(f)
+                f.controls.perform(.sendDraft); await settle(f)
+                check(f.controls.pendingSend != nil, "preview exists before returning to the target")
+                f.ax.frontmostPID = ProcessInfo.processInfo.processIdentifier
+                f.ax.restoreForegroundOnActivation = true
+                f.ax.activationPaused = true
+                f.controls.confirmSend()
+                await waitUntil("preview return activation") { f.ax.activationContinuation != nil }
+                switch changed {
+                case "bluetooth": f.bluetooth.disconnect()
+                case "provider busy": f.external.isBusy = true
+                case "text": f.ax.text = "late replacement text"
+                case "focus": f.ax.focusedNodeID = "anchor"
+                case "cancel": f.controls.perform(.cancel)
+                default: f.ax.windows[0].children[0].runtimeIdentity = "replacement-input-instance"
+                }
+                f.ax.resumeActivation(); await settle(f)
+                check(f.ax.presses.isEmpty && f.ax.writes.isEmpty && f.ax.focuses == 0,
+                      "late state change cannot submit or repair focus")
+                check(f.controls.pendingSend == nil, "late failure consumes approval")
+            }
+        }
+        await run("uncertain current input cannot be resent by switching to bound draft mode") { f in
+            focusedMode(f)
+            f.controls.perform(.sendDraft); await settle(f)
+            f.ax.failPress = true
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses.count == 1, "one attempt was recorded before the failure")
+            f.ax.failPress = false
+            _ = f.controls.updateSettings { $0.voiceInput = nil }
+            f.voice.replaceDraft("different local draft")
+            f.controls.perform(.insertDraft); await settle(f)
+            f.controls.perform(.sendDraft); await settle(f)
+            f.controls.confirmSend(); await settle(f)
+            check(f.controls.pendingSend == nil && f.ax.presses.count == 1,
+                  "changing destination and local text cannot bypass an uncertain target submission")
+        }
+        for mutation in ["throws after press", "unconfirmed outcome"] {
+            await run("current input \(mutation) blocks further automatic submissions even with new text") { f in
+                focusedMode(f)
+                f.controls.perform(.sendDraft); await settle(f)
+                f.ax.failPress = mutation == "throws after press"
+                f.ax.leaveSubmissionUnconfirmed = mutation == "unconfirmed outcome"
+                f.controls.confirmSend(); await settle(f)
+                check(f.ax.presses.count == 1, "mutation was attempted exactly once")
+                f.ax.failPress = false; f.ax.leaveSubmissionUnconfirmed = false
+                f.ax.text = "different text cannot erase uncertain receipt"
+                f.controls.perform(.sendDraft); await settle(f)
+                f.controls.confirmSend(); await settle(f)
+                check(f.ax.presses.count == 1 && f.controls.pendingSend == nil && f.ax.writes.isEmpty,
+                      "changed text cannot bypass an uncertain submission lock")
+            }
+        }
+        await run("confirmed current input cannot replay the same text but permits a new instruction") { f in
+            focusedMode(f)
+            let firstText = f.ax.text
+            f.controls.perform(.sendDraft); await settle(f)
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses == ["send"], "first reviewed text submitted")
+            f.ax.windows[0].children[3].enabled = false; f.ax.windows[0].children[2].enabled = true
+            f.ax.text = firstText
+            f.controls.perform(.sendDraft); await settle(f)
+            check(f.controls.pendingSend == nil && f.ax.presses.count == 1, "same confirmed target text cannot be sent twice")
+            f.ax.text = "a separate next instruction"
+            f.controls.perform(.sendDraft); await settle(f)
+            check(f.controls.pendingSend?.confirmation.text == f.ax.text, "new text has its own explicit review")
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses.count == 2 && f.ax.writes.isEmpty, "new instruction still requires a separate confirmation")
+        }
+        await run("current input managed Codex keeps Steer priority without inserting stale draft") { f in
+            let conversation = CodexConversation(id: "00000000-0000-0000-0000-000000000101", title: "Synthetic Task", projectPath: "/tmp/Synthetic")
+            _ = f.controls.updateSettings { config in
+                config.workspaces[0].bundleIdentifier = "com.openai.codex"
+                config.workspaces[0].codexConversation = conversation
+                config.workspaces[0].codexThreadURL = conversation.canonicalURL.absoluteString
+            }
+            f.ax.windows[0].url = conversation.canonicalURL.absoluteString
+            f.ax.windows[0].children.append(ToolAXNode(id: "steer", role: "AXButton", identifier: "steer", label: "Steer", enabled: true,
+                actions: ["AXPress"], visible: true, contentScopeID: "synthetic-main"))
+            f.ax.windows[0].children[3].enabled = true
+            focusedMode(f)
+            f.controls.perform(.confirmInput); await settle(f)
+            check(f.controls.pendingSend?.confirmation.kind == .steer && f.ax.presses.isEmpty, "first OK reviews Steer only")
+            f.controls.confirmSend(); await settle(f)
+            check(f.ax.presses == ["steer"] && f.ax.writes.isEmpty, "second confirmation uses Steer and never inserts local draft")
         }
         await run("failed persistence preserves live configuration and drafts") { f in
             let before = f.controls.settings

@@ -70,7 +70,7 @@ struct VoiceInputSettingsView: View {
                             Toggle("已设置相同快捷键和触发方式，并关闭输入法自动发送", isOn: $shortcutConfirmed)
                         }
                         if destination == .currentFocus {
-                            Toggle("已在输入法中关闭自动发送（手动触发也需要）", isOn: $autoSendDisabled)
+                            Toggle("已确认输入法只填文字，不会自动发送（手动触发也需要）", isOn: $autoSendDisabled)
                         }
                         HStack {
                             Button("保存配置") { save() }.disabled(!controls.canEdit)
@@ -255,7 +255,7 @@ struct ExternalDirectStatusView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(external.phase != .review || voice.isReceivingAudio || !providerFinished)
                 }
-                Text("也可从菜单栏确认输入法已结束并准备下一段；不会切换或激活目标应用。")
+                Text("继续听写可选「准备下一段」。需要用遥控器确认发送时，请先选「结束本次准备」，再回到已绑定输入框按确认键。")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
         }

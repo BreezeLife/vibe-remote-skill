@@ -118,7 +118,7 @@ struct RemoteView: View {
                 }
             }.frame(minHeight: 44)
             Text(model.inputDestination == .currentFocus
-                 ? "当前输入框模式无需绑定工作区；不会按回车或自动发送。原工作区草稿独立保留，可在「语音输入」切回草稿模式查看。"
+                 ? "语音输入无需绑定工作区，不会自动发送。遥控器确认发送需另行绑定目标，并经过全文预览。原工作区草稿独立保留。"
                  : "草稿按工作区分别保留。使用顶部按钮插入和预览发送；语音键不会自动发送。")
                 .font(.caption).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

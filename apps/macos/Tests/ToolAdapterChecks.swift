@@ -16,6 +16,7 @@ import VibeRemoteCore
     var presses: [String] = []
     var writes = 0
     var activationWorks = true
+    var activations = 0
     var focusWorks = true
     var writeWorks = true
     var sendChangesState = true
@@ -27,6 +28,7 @@ import VibeRemoteCore
     var shortcuts: [ActionShortcut] = []
     var shortcutFocusWorks = true
     var valuesRead = 0
+    var valueReadHook: (() -> Void)?
     var focusHook: (() -> Void)?
     var openedURLs: [URL] = []
     var openHook: (() -> Void)?
@@ -44,6 +46,7 @@ import VibeRemoteCore
     func installedApplication(bundleIdentifier: String) -> ToolApplication? { nil }
     func application(at url: URL) throws -> ToolApplication { try application(bundleIdentifier: "test.fake", appPath: url.path) }
     func activate(_ application: ToolApplication) async throws {
+        activations += 1
         if activationPaused { await withCheckedContinuation { activationContinuation = $0 } }
         if activationWorks { front = pid }
     }
@@ -57,7 +60,12 @@ import VibeRemoteCore
         return ToolAXObservation(processID: pid, frontmostPID: front, focusedWindowID: focusedWindow,
                                  focusedNodeID: focused, pointerNodeID: pointer, windows: windows, complete: complete)
     }
-    func value(of node: ToolAXNode) throws -> String { valuesRead += 1; return text }
+    func value(of node: ToolAXNode) throws -> String {
+        valuesRead += 1
+        let captured = text
+        valueReadHook?()
+        return captured
+    }
     func setValue(_ value: String, of node: ToolAXNode) throws {
         writes += 1
         if writeThrows { throw ToolAdapterError("synthetic uncertain write") }
@@ -96,14 +104,14 @@ import VibeRemoteCore
     func resetTree() {
         windows = [ToolAXNode(id: "window", role: "AXWindow", label: "Project Alpha", children: [
             ToolAXNode(id: "input", role: "AXTextArea", identifier: "composer", label: "Message", editable: true, enabled: true,
-                       visible: true, contentScopeID: "main-content"),
+                       visible: true, contentScopeID: "main-content", runtimeIdentity: "live-input"),
             ToolAXNode(id: "anchor", role: "AXHeading", identifier: "task-alpha", label: "Task Alpha",
                        visible: true, contentScopeID: "main-content"),
             ToolAXNode(id: "send", role: "AXButton", identifier: "send", label: "Send message", enabled: true, actions: ["AXPress"],
                        visible: true, contentScopeID: "main-content"),
             ToolAXNode(id: "stop", role: "AXButton", identifier: "stop", label: "Stop generating", enabled: false, actions: ["AXPress"],
                        visible: true, contentScopeID: "main-content")
-        ])]
+        ], runtimeIdentity: "live-window")]
     }
 }
 
@@ -140,6 +148,174 @@ import VibeRemoteCore
     func addSteer(_ driver: FakeToolAXDriver, label: String = "Steer now") {
         driver.windows[0].children.append(ToolAXNode(id: "steer", role: "AXButton", identifier: "steer-current", label: label,
             enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+    }
+    func focusedPreview(_ adapter: ToolAdapter, _ workspace: WorkspaceProfile) async throws -> ToolSendConfirmation {
+        try await adapter.prepareFocusedSend(for: workspace)
+    }
+    do {
+        let (d, a, w) = fixture()
+        d.text = "provider text\nwith an existing prefix"
+        let preview = try await focusedPreview(a, w)
+        check(preview.text == d.text && preview.kind == .send, "focused preview contains full current input")
+        check(d.activations == 0 && d.focuses == 0 && d.writes == 0 && d.presses.isEmpty && d.shortcuts.isEmpty,
+              "focused preview never activates, focuses, writes, or presses")
+        let result = try await a.confirmSend(preview, for: w)
+        check(result.confirmed && d.presses == ["send"], "focused confirmation sends exactly once")
+        check(d.activations == 0 && d.focuses == 0 && d.writes == 0, "already focused confirmation never redirects input")
+        await rejects("focused confirmation is single use") { _ = try await a.confirmSend(preview, for: w) }
+    } catch { check(false, "focused preview happy path: \(error)") }
+    for issue in ["front", "focus", "window", "task", "empty", "unbound", "permission", "shell", "secure", "readonly", "incomplete", "unknownRuntime", "modal", "unknownWindowIdentity", "unknownInputIdentity"] {
+        let (d, a, original) = fixture(); var w = original
+        switch issue {
+        case "front": d.front = 99
+        case "focus": d.focused = "other"
+        case "window": d.focusedWindow = "other"
+        case "task": d.windows[0].children[1].label = "Different task"
+        case "empty": d.text = " \n\t"
+        case "unbound": w.binding = nil
+        case "permission": d.trusted = false
+        case "shell": w.bundleIdentifier = "com.apple.Terminal"
+        case "secure": d.windows[0].children[0].secure = true
+        case "readonly": d.windows[0].children[0].editable = false
+        case "incomplete": d.complete = false
+        case "unknownRuntime": d.windows[0].children[3].enabled = nil
+        case "modal": d.windows[0].children.append(ToolAXNode(id: "dialog", role: "AXSheet", visible: true, modal: true))
+        case "unknownWindowIdentity": d.windows[0].runtimeIdentity = nil
+        case "unknownInputIdentity": d.windows[0].children[0].runtimeIdentity = nil
+        default: break
+        }
+        await rejects("focused preview rejects \(issue)") { _ = try await focusedPreview(a, w) }
+        check(d.activations == 0 && d.focuses == 0 && d.writes == 0 && d.presses.isEmpty && d.shortcuts.isEmpty,
+              "focused preview \(issue) never mutates target")
+    }
+    for issue in ["missingIdentity", "wrongConversation", "approval"] {
+        let (d, a, w, _) = codexFixture()
+        switch issue {
+        case "missingIdentity": d.windows[0].url = nil
+        case "wrongConversation": d.windows[0].url = "codex://threads/22222222-2222-4222-8222-222222222222"
+        case "approval": d.windows[0].children.append(ToolAXNode(id: "approval", role: "AXButton", label: "Allow once", enabled: true, actions: ["AXPress"], visible: true, contentScopeID: "main-content"))
+        default: break
+        }
+        await rejects("focused Codex preview rejects \(issue)") { _ = try await focusedPreview(a, w) }
+        check(d.activations == 0 && d.focuses == 0 && d.valuesRead == 0 && d.presses.isEmpty,
+              "focused Codex \(issue) blocks before text reading or mutation")
+    }
+    for issue in ["front", "input", "windowIdentity", "inputIdentity", "replacedWindow", "replacedInput", "text", "version", "process", "modal"] {
+        do {
+            let (d, a, w) = fixture()
+            let preview = try await focusedPreview(a, w)
+            d.activations = 0; d.focuses = 0
+            switch issue {
+            case "front": d.front = 99
+            case "input": d.focused = "other"
+            case "windowIdentity": d.windows[0].id = "replacement-window"; d.focusedWindow = "replacement-window"
+            case "inputIdentity": d.windows[0].children[0].id = "replacement-input"; d.focused = "replacement-input"
+            case "replacedWindow": d.windows[0].runtimeIdentity = "new-window-at-same-path"
+            case "replacedInput": d.windows[0].children[0].runtimeIdentity = "new-input-at-same-path"
+            case "text": d.text = "changed after preview"
+            case "version": d.version = "2.0"
+            case "process": d.pid = 55; d.front = 55
+            case "modal": d.windows[0].children.append(ToolAXNode(id: "dialog", role: "AXSheet", visible: true, modal: true))
+            default: break
+            }
+            await rejects("focused confirmation rejects \(issue)") { _ = try await a.confirmSend(preview, for: w) }
+            check(d.activations == 0 && d.focuses == 0 && d.writes == 0 && d.presses.isEmpty && d.shortcuts.isEmpty,
+                  "focused confirmation \(issue) blocks before target mutation")
+            await rejects("failed focused confirmation \(issue) cannot replay") { _ = try await a.confirmSend(preview, for: w) }
+        } catch { check(false, "focused confirmation fixture \(issue): \(error)") }
+    }
+    for issue in ["none", "input", "text", "activationFocus", "activationText"] {
+        do {
+            let (d, a, w) = fixture()
+            let preview = try await focusedPreview(a, w)
+            d.activations = 0; d.focuses = 0
+            d.front = ProcessInfo.processInfo.processIdentifier
+            if issue == "input" { d.focused = "other" }
+            if issue == "text" { d.text = "changed in own preview" }
+            if issue == "activationFocus" || issue == "activationText" {
+                d.activationPaused = true
+                let operation = Task { try await a.confirmSend(preview, for: w) }
+                while d.activationContinuation == nil { await Task.yield() }
+                if issue == "activationFocus" { d.focused = "other" }
+                else { d.text = "changed while activating" }
+                d.activationContinuation?.resume(); d.activationContinuation = nil
+                await rejects("focused own-preview rejects \(issue)") { _ = try await operation.value }
+                check(d.activations == 1 && d.focuses == 0 && d.presses.isEmpty && d.writes == 0,
+                      "focused own-preview \(issue) does not restore or submit changed input")
+            } else if issue == "none" {
+                let outcome = try await a.confirmSend(preview, for: w)
+                check(outcome.confirmed && d.activations == 1 && d.focuses == 0 && d.writes == 0 && d.presses == ["send"],
+                      "own preview may reactivate unchanged target without focusing or insertion")
+            } else {
+                await rejects("focused own-preview rejects \(issue)") { _ = try await a.confirmSend(preview, for: w) }
+                check(d.activations == 0 && d.focuses == 0 && d.writes == 0 && d.presses.isEmpty,
+                      "changed own-preview \(issue) is rejected before activation")
+            }
+        } catch { check(false, "focused own-preview fixture \(issue): \(error)") }
+    }
+    do {
+        let (d, a, w, _) = codexFixture(); d.setRunning(true); addSteer(d)
+        let preview = try await focusedPreview(a, w)
+        check(preview.kind == .steer && d.activations == 0 && d.focuses == 0 && d.presses.isEmpty,
+              "focused Codex preview prefers live Steer without mutation")
+        d.front = ProcessInfo.processInfo.processIdentifier
+        let result = try await a.confirmSend(preview, for: w)
+        check(result.confirmed && d.presses == ["steer"] && d.focuses == 0 && d.writes == 0,
+              "focused Steer confirmation uses same guarded submission path")
+    } catch { check(false, "focused Steer preview: \(error)") }
+    for method in ["send", "shortcut", "steer"] {
+        for change in ["front", "focus", "window", "text", "modal", "inputIdentity"] {
+            do {
+                let (d, a, original, _) = codexFixture()
+                var w = original
+                if method == "steer" { d.setRunning(true); addSteer(d) }
+                if method == "shortcut" {
+                    w.shortcuts = [ActionShortcut(action: .sendDraft, keyCode: 36, modifiers: [.command])]
+                    d.windows[0].children[2].shortcutKeyCode = 36
+                    d.windows[0].children[2].shortcutModifiers = [.command]
+                }
+                let preview = try await focusedPreview(a, w)
+                var attempts = 0
+                // Model a target change at the final coordinator authorization boundary.
+                a.authorizeOperation = {
+                    switch change {
+                    case "front": d.front = 99
+                    case "focus": d.focused = "other"
+                    case "window": d.focusedWindow = "other"
+                    case "text": d.text = "changed immediately before submission"
+                    case "modal": d.windows[0].modal = true
+                    default: d.windows[0].children[0].runtimeIdentity = "replacement-input"
+                    }
+                }
+                await rejects("focused \(method) rechecks \(change) after authorization") {
+                    _ = try await a.confirmSend(preview, for: w, willSubmit: { attempts += 1 })
+                }
+                check(attempts == 0 && d.presses.isEmpty && d.shortcuts.isEmpty && d.writes == 0 && d.focuses == 0,
+                      "focused \(method) authorization race \(change) never marks or attempts submission")
+            } catch { check(false, "focused \(method) authorization fixture \(change): \(error)") }
+        }
+    }
+    do {
+        let (d, a, w) = fixture()
+        let preview = try await focusedPreview(a, w)
+        var authorizationChecked = false, allowed = true, attempts = 0
+        a.authorizeOperation = {
+            guard allowed else { throw ToolAdapterError("preview lease expired during AX check") }
+            authorizationChecked = true
+        }
+        d.snapshotHook = { if authorizationChecked { allowed = false } }
+        await rejects("focused submission renews authorization after its final AX check") {
+            _ = try await a.confirmSend(preview, for: w, willSubmit: { attempts += 1 })
+        }
+        check(attempts == 0 && d.presses.isEmpty && d.shortcuts.isEmpty,
+              "lease expiring during final AX work never marks or attempts submission")
+    } catch { check(false, "focused final AX lease fixture: \(error)") }
+    do {
+        let (d, a, w) = fixture()
+        d.valueReadHook = { d.focused = "other" }
+        await rejects("focused preview rejects focus changing during text read") { _ = try await focusedPreview(a, w) }
+        check(d.activations == 0 && d.focuses == 0 && d.writes == 0 && d.presses.isEmpty,
+              "focused preview race never repairs focus")
     }
     do {
         let (d, a, w) = fixture()

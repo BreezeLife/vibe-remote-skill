@@ -32,6 +32,11 @@ struct ButtonSettingsView: View {
                         GroupBox("动作") {
                             VStack(alignment: .leading, spacing: 14) {
                                 actionPicker("单击", get: { model.mapping.single }, set: { value in model.updateMapping { $0.single = value } })
+                                if model.voice.inputDestination == .currentFocus && model.selectedButton == .ok {
+                                    Text("选择「预览发送当前输入」或「确认当前输入」：在已绑定输入框按一次预览全文，再按确认键发送。第三方听写需先确认结束本次准备。")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                                 Toggle("启用长按 · 600 ms", isOn: Binding(get: { model.mapping.long != nil }, set: { enabled in
                                     model.updateMapping { $0.long = enabled ? RemoteAction.none : nil }
                                 })).disabled(model.mapping.input?.supportsHold != true)
@@ -93,7 +98,10 @@ struct ButtonSettingsView: View {
     private func actionPicker(_ title: String, get: @escaping () -> RemoteAction,
                               set: @escaping (RemoteAction) -> Void) -> some View {
         Picker(title, selection: Binding(get: get, set: set)) {
-            ForEach(RemoteAction.allCases, id: \.self) { Text($0.label).tag($0) }
+            ForEach(RemoteAction.allCases, id: \.self) { action in
+                Text(model.voice.inputDestination == .currentFocus && action == .sendDraft ? "预览发送当前输入" :
+                     model.voice.inputDestination == .currentFocus && action == .confirmInput ? "确认当前输入" : action.label).tag(action)
+            }
         }
     }
     private var remoteDiagram: some View {
