@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-15 (Asia/Shanghai).
+Updated: 2026-10-16 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -32,10 +32,11 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.2.11 — current-focus permission preflight
 
-User screenshots show the app's missing-Accessibility warning. System Settings shows a same-name
-Vibe Remote switch enabled, but the user reports the app still says unauthorized after refreshing.
-One system /Applications 0.2.9 process and a valid ad-hoc bundle signature were observed.
-The exact stale-grant/identity cause is not established; no permissions were changed.
+Initial user screenshots showed the app's missing-Accessibility warning despite a same-name
+System Settings switch being enabled. One system /Applications 0.2.9 process and a valid ad-hoc
+bundle signature were observed. The exact stale-grant/identity cause was not established.
+After updating to 0.2.11, rebuilding only its permission entry and quitting/relaunching, the user
+confirmed the app itself displays Accessibility authorized on 2026-10-16.
 
 - [x] Reject direct external preparation when the focused-input service is not AX trusted,
   including manual trigger, without reading the input or starting audio/shortcuts.
@@ -47,19 +48,18 @@ The exact stale-grant/identity cause is not established; no permissions were cha
   nonrelocation, arm64, strict ad-hoc signature and checksum.
 - [x] User saved drafts and quit; Installer completed 0.2.11 installation. Verified system path,
   installed version/build, signature, no user-directory copy and exact settings preservation.
-- [ ] Restore current-app authorization if needed, then repeat actual remote → loopback → Doubao
-  → plain-editor transcription. After explicit user consent and system authentication, added
-  the exact /Applications/Vibe Remote.app through Accessibility; the system switch is on.
-  The user still reported unauthorized after the app's refresh. Removed only the Vibe Remote
-  permission entry, re-added the exact system app and verified its switch is on. Await user
-  quit/relaunch and current-process trust verification, then fresh BLE readiness; no transcription pass yet.
+- [x] Restore current-app Accessibility authorization. After explicit user consent, removed only
+  the Vibe Remote entry and re-added /Applications/Vibe Remote.app; verified its system switch on.
+  The user then quit/relaunched and confirmed the app's own refreshed status is authorized.
+- [ ] Confirm fresh BLE readiness and prepare third-party dictation, then repeat actual remote
+  → loopback → Doubao → plain-editor transcription; no transcription pass yet.
 
 Package: ~/Downloads/VibeRemote-0.2.11-System-20261015/VibeRemote-0.2.11-arm64.pkg
 (3,518,563 bytes; app ad-hoc signed, installer unsigned/unnotarized).
 SHA-256: 8c70d65214b5922adc6717868f17972ef59a01dc40e5d2537cccd09e0d621e80.
 Installed/launched: 0.2.11/build 14. Home UI was readable; navigating to permissions again closed
-the computer-use pipe, so actual app permission verification still needs the user. System Settings
-remains accessible. Implementation `dedf63a` is pushed and hosted checks passed:
+the computer-use pipe. System Settings remained accessible; current-app permission was subsequently
+verified by the user after quit/relaunch. Implementation `dedf63a` is pushed and hosted checks passed:
 https://github.com/BreezeLife/vibe-remote-skill/actions/runs/38761805987.
 The new preflight does not grant OS permissions.
 

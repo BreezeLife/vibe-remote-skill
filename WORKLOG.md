@@ -1054,3 +1054,12 @@ user consent covers the same app and permission; no unrelated permission was cha
 a normal quit/relaunch followed by the app's own refresh; that current-process result remains
 pending. Read-only bundle metadata still confirms 0.2.11 and the expected identifier/executable.
 No new transcription attempt, mapped action or code change occurred during this repair step.
+
+## 2026-10-16 — current-app Accessibility verified after relaunch
+
+The user confirmed the app's own Accessibility status is authorized after the targeted entry
+rebuild, normal quit/relaunch and refresh. This resolves the current permission acceptance item;
+it does not establish a precise stale-entry cause, HID-seize privilege or successful dictation.
+Requested fresh remote readiness and explicit Doubao/current-focus/manual preparation before
+repeating the blank-editor audio/transcription test. No new audio or transcript was recorded,
+and no source or active configuration changed in this step.
