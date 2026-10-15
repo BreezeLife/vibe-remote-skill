@@ -852,3 +852,23 @@ exclusive suppression, voice delivery, provider settings and actual Codex use re
 
 Installation/configuration/six-key progress was committed and pushed as 2b23d35. Private
 local setup files, unrelated STATUS.md and .project-pulse/ were not staged or published.
+
+### Continued user-operated key checks and physical-label ambiguity
+
+The user subsequently reported “就绪” in the current app and said an earlier requested
+five-key sequence had not yet been pressed. This is user-reported readiness, not observed
+audio delivery. A later single OK-key check received page 7/report 1/usage 40, one down/up
+pair about 0.135 seconds apart, then closed normally. A requested Home/TV/Volume Up/Volume
+Down check received three identical sequences 74/53/128/129 (24 events, 12 pairs), without
+connection resets. These are real events, but 74 conflicts with the earlier label Menu=74.
+Physical button names were inferred from requested order; the conflicting Home/Menu labels
+must be checked using their distinct house and three-horizontal-line icons before import.
+
+The historical six-key import remains preserved but is now explicitly withheld from use;
+no duplicate Home/Menu binding or eleven-key file was generated. Fresh active-settings checks
+show the applied Doubao/current-focus/manual profile with zero HID calibrations, so the ambiguous
+assignment has not reached the active configuration. All private evidence remains outside Git.
+A single three-line-menu observation subsequently expired with zero events and normal cleanup.
+The user replied that they had pressed it after the window had closed; actual press timing was
+not established. Do not label the menu key broken from this result. A longer house/menu/house
+control sequence is being prepared to distinguish timing from an unreported button.

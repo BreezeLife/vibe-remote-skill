@@ -16,10 +16,12 @@ Observed on 2026-10-15: installed and launched 0.2.9/build 12 from system
 /Applications/Vibe Remote.app; no ~/Applications copy. Installer confirmed successful
 installation after the user completed system authorization. System BLE and the expected
 Xiaomi HID interface were observed, but the app only reached “等待蓝牙就绪…” before the
-UI control channel failed. The prior 2026-10-12 ATVV-ready observation belongs to 0.2.7.
+UI control channel failed. The user later reported the current app shows “就绪”; actual audio
+delivery remains unverified. The prior direct 2026-10-12 ATVV-ready observation belongs to 0.2.7.
 A first remote-only HID observation received zero events despite reported presses. A second
-coordinated 60-second observation verified six real keys with matching down/up events through
-the production receiver. App calibration/enabling, audio delivery and transcription remain
+coordinated 60-second observation recorded six real down/up pairs through the production
+receiver; later evidence made the Home/Menu physical labels ambiguous. App calibration/enabling,
+audio delivery and transcription remain
 unverified. The pairing-loss cause is unresolved.
 GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803fb52
 (run 38179199650) completed successfully.
@@ -53,15 +55,21 @@ This supersedes the earlier draft-first preference below; old configuration reta
 - [x] Prepare a separately validated local Doubao/current-focus/manual import, preserving
   every workspace and mapping with an exact-byte settings backup. No active-config overwrite.
 - [x] User imported the local profile; live settings match the validated Doubao/current-focus/
-  manual file exactly. User reported Ctrl as Doubao's shortcut; its gesture remains unverified.
+  manual file exactly. User reports double-click or hold Ctrl and an available 2ch microphone
+  choice; actual trigger behavior and microphone selection remain unverified.
 - [ ] Verify Doubao microphone/trigger/disabled-auto-send in its own UI. The applied Vibe Remote
   profile and detected devices do not establish applied provider settings or actual recording.
 - [ ] Real key sequence and audio-frame test with user-operated remote; the first observation
   window had no key events. Never label injected events as physical acceptance.
-- [x] Second observation: Up/Down/Left/Right/Back/Menu each delivered one down and one up;
-  keyboard page 7/report 1, usages 82/81/80/79/241/74 respectively. No injection was used.
+- [x] Second observation: six complete down/up pairs arrived in the requested sequence;
+  keyboard page 7/report 1, usages 82/81/80/79/241/74. The initial Menu=74 label is now pending
+  verification because a later requested Home sequence also starts with 74. No injection was used.
+- [x] Independent OK-only observation: page 7/report 1/usage 40, one down/up pair, about 0.135 s.
+- [x] Further actual sequences: 74/53/128/129 repeated three times (24 events), when the requested
+  order was Home/TV/Volume Up/Volume Down. Resolve Home/Menu by distinct physical icons first.
 - [x] Prepare and validate a private six-key calibration import from those events, preserving
   the applied voice profile and workspace presets. Short presses do not enable long gestures.
+  This historical file must NOT be imported while its Menu=74 physical label is unresolved.
 - [ ] Verify the remaining controls, import observed mappings, and check app observation,
   exclusive suppression and voice coexistence before enabling coding-tool actions.
   A later 180-second window remained observing with one interface and no removal/reset,
@@ -74,8 +82,9 @@ Latest package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-ar
 SHA-256: 5d1d56e57c730c39f24a14c67a5f106854e521a8c62101747fe5271030cd8b40.
 Local import: ~/Downloads/VibeRemote-Setup-20261015/settings.doubao-current-focus.json;
 original settings.original.json is preserved alongside it. Both are private local files outside Git.
-Six-key import: same folder, settings.doubao-current-focus-six-keys.json; original active
-settings backed up separately before calibration. This second file has not yet been imported.
+Historical six-key file: same folder, settings.doubao-current-focus-six-keys.json; original active
+settings backed up separately before calibration. Do not import it pending Home/Menu verification.
+Active settings still have zero HID calibrations; no ambiguous button assignment has been applied.
 Fresh software suites passed with the counts above. Actual Vibe Remote UI control returned a
 native pipe-closed error; Doubao UI access timed out. Codex computer-use access was explicitly
 denied for safety reasons and was not bypassed. Provider and Codex acceptance require user-led
