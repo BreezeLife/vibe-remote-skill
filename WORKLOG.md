@@ -769,3 +769,75 @@ Implementation and package source committed/pushed as `f3520b3`. Updated the ins
 setup and acceptance guidance for the new destination, including the direct-mode OK restriction.
 Current draft-safety confirmation and actual key presses have not arrived; no app was quit or
 installed. Hosted checks for the implementation are tracked separately from local verification.
+
+## 2026-10-15 — system installation and resumed physical acceptance
+
+The user resumed testing with the remote connected. At the start, system /Applications held
+0.2.7 but no Vibe Remote process was running; no in-memory draft was discarded. Rebuilt missing
+0.2.9/build 12 installer and independently checked expanded LocalSystem-only payload,
+/Applications destination, nonrelocation, canonical icon and strict ad-hoc bundle signature.
+Package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-arm64.pkg,
+3,486,094 bytes; SHA-256 5d1d56e57c730c39f24a14c67a5f106854e521a8c62101747fe5271030cd8b40.
+The user completed the macOS authorization prompt. Installer reported completion; bundle
+metadata and the launched process confirm 0.2.9 in system /Applications, with one process
+and no ~/Applications copy. This supersedes the pending-install status above.
+
+Fresh tests passed: core 83; voice model 37 scenarios/224 assertions; controls integration
+63/211; focused input 64; external dictation 48; audio output 46; speech 42; HID 48; tool adapter
+307; settings 15; catalog 27; provider discovery 21; Python 30 and neutral config validation.
+GitHub runs 38179123590 (f3520b3) and 38179199650 (803fb52) succeeded. These software checks
+do not establish physical input or actual coding-tool compatibility.
+
+Read-only system metadata showed a connected BLE remote with the expected keyboard HID
+interface, Doubao IME 0.5.7 running and MiRemoteV 2ch 0.7.1 installed. No competing SayAll or
+MiRemote app was running. Codex now resolves to the ChatGPT.app bundle but retains its Codex
+bundle identity. No system audio defaults or privacy grants were changed by these checks.
+Actual Vibe Remote Connect showed “等待蓝牙就绪…” before the computer-use channel failed with
+a native pipe-closed error; the app process remained alive. Doubao UI access timed out.
+Codex computer-use access was explicitly denied for safety reasons; no alternative UI/AX
+automation was used to bypass that restriction.
+
+Prepared a private local Doubao/current-focus/manual settings import and an exact-byte
+original backup under ~/Downloads/VibeRemote-Setup-20261015, without overwriting running
+app settings. The profile pins the single observed supported loopback route, retains all
+12 workspaces and mappings, and does not persist microphone or auto-send verification.
+Validated through the real NativeSettingsStore and round-trip encoding; all original JSON
+outside voiceInput remains equal. Files are mode 0600 and outside Git. User-led import and
+provider microphone/shortcut checks were requested; configuration preparation is not acceptance.
+
+A 60-second exact-remote, nonexclusive HID observation opened successfully with existing
+input-monitoring permission but saw zero qualifying down/up events and closed cleanly.
+The user confirmed pressing Up, Down, Left, Right, Back and Menu in that window and seeing
+no diagram change. No key mapping is accepted. Descriptor inspection found keyboard report 1
+with three 16-bit array slots plus macOS synthesized binary elements; whether callbacks arrive
+only for the non-binary slots is a diagnostic hypothesis, not yet an established root cause.
+Vendor report payloads, raw audio, transcripts and runtime device identifiers are not logged.
+
+The user subsequently confirmed importing the profile and seeing Doubao/current-focus/
+MiRemoteV 2ch. Read-only comparison then confirmed active settings exactly equal the validated
+import. The user's shortcut report was “Ctrl”; hold/tap behavior, provider microphone choice
+and disabled-auto-send are still unknown, so manual triggering remains selected.
+
+After the user confirmed readiness again, a second coordinated 60-second nonexclusive
+observation instrumented callback stages in a temporary copy of the production receiver.
+It received 48 IOHID callbacks, no errors, and 12 delivered events: six down/up pairs in the
+requested sequence. Keyboard page 7/report 1 usages were Up 82, Down 81, Left 80, Right 79,
+Back 241 and Menu 74. Array and binary callbacks both arrived, so the binary filter is not
+blocking these keys. No production code change is indicated by this evidence. The observer
+closed normally. These are actual user-operated HID results, separate from still-pending
+app calibration, exclusive suppression, audio delivery and Codex navigation acceptance.
+
+A third 60-second observation for OK/Home/TV/Volume Up/Volume Down received zero callbacks
+and zero delivered events; these buttons remain uncalibrated. Prepared a longer observation
+with topology/reset/observing-state diagnostics to distinguish timing from connection changes.
+No cause is inferred from the empty window. The six proven keys were added to a separate
+private settings.doubao-current-focus-six-keys.json import using the observed descriptor hash.
+Every supportsHold is false; the unverified global Back long-press stopTask was cleared as
+required by the same validation used by in-app learning. Workspace presets and other settings
+remain intact. Actual NativeSettingsStore and round-trip/preservation checks passed; active
+settings were not modified. The pre-calibration settings were backed up in a new local file.
+
+The user clarified Doubao supports double-click or hold Ctrl and can select the 2ch input;
+the automatic-send setting is unknown. This does not establish microphone selection or
+disabled auto-send, so no provider-ready confirmation was fabricated and no Codex dictation
+was started. Another allowed attempt to inspect the now-open Doubao settings also timed out.

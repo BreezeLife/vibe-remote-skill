@@ -1,6 +1,6 @@
 # Tasks
 
-Updated: 2026-10-12 (Asia/Shanghai).
+Updated: 2026-10-15 (Asia/Shanghai).
 
 ## Current direction: our own macOS app
 
@@ -12,13 +12,17 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Observed on 2026-10-12: system /Applications/Vibe Remote.app is 0.2.7 and a
-process runs from that system path; no ~/Applications copy. A user-authorized connection
-in the installed app reached ATVV ready at 16 kHz. System BLE and the Xiaomi HID interface
-were also observed. A bounded 60-second remote-only HID observer saw zero key events;
-button mapping, audio frames and transcription have not yet passed physical acceptance.
-The cause of the earlier recurring pairing loss remains unconfirmed. GitHub checks for
-6cf811a (run 38160177209) and 90f044a (run 38160245199) completed successfully.
+Observed on 2026-10-15: installed and launched 0.2.9/build 12 from system
+/Applications/Vibe Remote.app; no ~/Applications copy. Installer confirmed successful
+installation after the user completed system authorization. System BLE and the expected
+Xiaomi HID interface were observed, but the app only reached “等待蓝牙就绪…” before the
+UI control channel failed. The prior 2026-10-12 ATVV-ready observation belongs to 0.2.7.
+A first remote-only HID observation received zero events despite reported presses. A second
+coordinated 60-second observation verified six real keys with matching down/up events through
+the production receiver. App calibration/enabling, audio delivery and transcription remain
+unverified. The pairing-loss cause is unresolved.
+GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803fb52
+(run 38179199650) completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.2.9 — current-focus voice input
@@ -44,18 +48,36 @@ This supersedes the earlier draft-first preference below; old configuration reta
   retained-text views fit without clipping. These are not real target input tests.
 - [x] Independently expand 0.2.9/build 12: LocalSystem-only, /Applications, nonrelocation,
   canonical icon identity and strict ad-hoc app signature.
-- [ ] Install after current draft safety is confirmed, then select current-focus mode locally.
+- [x] Install and launch 0.2.9/build 12 in system /Applications on 2026-10-15; old app was
+  not running at the start, and the user completed Installer authorization.
+- [x] Prepare a separately validated local Doubao/current-focus/manual import, preserving
+  every workspace and mapping with an exact-byte settings backup. No active-config overwrite.
+- [x] User imported the local profile; live settings match the validated Doubao/current-focus/
+  manual file exactly. User reported Ctrl as Doubao's shortcut; its gesture remains unverified.
+- [ ] Verify Doubao microphone/trigger/disabled-auto-send in its own UI. The applied Vibe Remote
+  profile and detected devices do not establish applied provider settings or actual recording.
 - [ ] Real key sequence and audio-frame test with user-operated remote; the first observation
   window had no key events. Never label injected events as physical acceptance.
+- [x] Second observation: Up/Down/Left/Right/Back/Menu each delivered one down and one up;
+  keyboard page 7/report 1, usages 82/81/80/79/241/74 respectively. No injection was used.
+- [x] Prepare and validate a private six-key calibration import from those events, preserving
+  the applied voice profile and workspace presets. Short presses do not enable long gestures.
+- [ ] Verify the remaining controls, import observed mappings, and check app observation,
+  exclusive suppression and voice coexistence before enabling coding-tool actions.
 - [ ] Real plain-editor insertion/selection, focus-loss retention, Doubao microphone/shortcut
   and provider completion test. Codex/Claude/WorkBuddy direct input remains unverified.
 
-Package: ~/Downloads/VibeRemote-0.2.9-System-20261012/VibeRemote-0.2.9-arm64.pkg
-(3,486,091 bytes; arm64; app ad-hoc signed, installer unsigned/unnotarized).
-SHA-256: 6388ce473e2b9b6f0a268d739947cf4e9063f18855a2f903cd9b33edcdddeae5.
-Installed/running remains 0.2.7. The app UI channel later returned a native pipe-closed error;
-no alternate UI automation was used. No system audio defaults, permissions, provider shortcuts
-or real settings were changed. Current update confirmation is pending.
+Latest package: ~/Downloads/VibeRemote-0.2.9-System-20261015/VibeRemote-0.2.9-arm64.pkg
+(3,486,094 bytes; arm64; app ad-hoc signed, installer unsigned/unnotarized).
+SHA-256: 5d1d56e57c730c39f24a14c67a5f106854e521a8c62101747fe5271030cd8b40.
+Local import: ~/Downloads/VibeRemote-Setup-20261015/settings.doubao-current-focus.json;
+original settings.original.json is preserved alongside it. Both are private local files outside Git.
+Six-key import: same folder, settings.doubao-current-focus-six-keys.json; original active
+settings backed up separately before calibration. This second file has not yet been imported.
+Fresh software suites passed with the counts above. Actual Vibe Remote UI control returned a
+native pipe-closed error; Doubao UI access timed out. Codex computer-use access was explicitly
+denied for safety reasons and was not bypassed. Provider and Codex acceptance require user-led
+observation until a permitted UI channel is available; no successful real input/send is claimed.
 
 ## 0.2.8 — third-party voice input configuration
 
