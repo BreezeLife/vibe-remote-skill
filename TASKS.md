@@ -12,9 +12,9 @@ not observed in this development turn and they are not part of the native build.
 
 Repository: https://github.com/BreezeLife/vibe-remote-skill.
 Native design: docs/NATIVE-DESIGN.md. Usage: docs/NATIVE-SETUP.md.
-Observed on 2026-10-15: installed and launched 0.2.9/build 12 from system
-/Applications/Vibe Remote.app; no ~/Applications copy. Installer confirmed successful
-installation after the user completed system authorization. System BLE and the expected
+Current installation on 2026-10-15: 0.2.11/build 14 launched from system
+/Applications/Vibe Remote.app; no ~/Applications copy and settings preserved byte-for-byte.
+Earlier 0.2.9 testing established the following hardware observations. System BLE and the expected
 Xiaomi HID interface were observed, but the app only reached “等待蓝牙就绪…” before the
 UI control channel failed. The user later reported “就绪”, then confirmed actual voice-hold
 meter/duration growth and normal stop on release; a supplied screenshot shows capture ended
@@ -45,13 +45,19 @@ The exact stale-grant/identity cause is not established; no permissions were cha
 - [x] Release/package build passed for 0.2.11/build 14, system /Applications.
 - [x] Independently verify final package version/icon, LocalSystem /Applications only,
   nonrelocation, arm64, strict ad-hoc signature and checksum.
-- [ ] Preserve drafts, install, restore current-app authorization if needed, then repeat actual
-  remote → loopback → Doubao → plain-editor transcription. No successful transcription yet.
+- [x] User saved drafts and quit; Installer completed 0.2.11 installation. Verified system path,
+  installed version/build, signature, no user-directory copy and exact settings preservation.
+- [ ] Restore current-app authorization if needed, then repeat actual remote → loopback → Doubao
+  → plain-editor transcription. System Settings is awaiting user authentication/consent;
+  no grant or successful transcription is established yet.
 
 Package: ~/Downloads/VibeRemote-0.2.11-System-20261015/VibeRemote-0.2.11-arm64.pkg
 (3,518,563 bytes; app ad-hoc signed, installer unsigned/unnotarized).
 SHA-256: 8c70d65214b5922adc6717868f17972ef59a01dc40e5d2537cccd09e0d621e80.
-Still installed/running: 0.2.9/build 12. The new preflight does not grant OS permissions.
+Installed/launched: 0.2.11/build 14. Home UI was readable; navigating to permissions again closed
+the computer-use pipe, so actual app permission verification still needs the user. System Settings
+remains accessible. Implementation `dedf63a` is pushed; its hosted checks are not yet verified.
+The new preflight does not grant OS permissions.
 
 ## 0.2.10 — explicit current-input submission
 
@@ -81,7 +87,8 @@ or an available Codex Steer. Voice release itself never submits.
 Package: ~/Downloads/VibeRemote-0.2.10-System-20261015/VibeRemote-0.2.10-arm64.pkg
 (3,518,169 bytes; app ad-hoc signed, installer unsigned/unnotarized).
 SHA-256: 503ba91ffcc44e6a21402bf0169f04d7e7be9e54e61a95d22eb28d4e38338533.
-Still installed/running: 0.2.9/build 12. Updating has not been reported as installed.
+At packaging time 0.2.9/build 12 remained installed; 0.2.10 was not installed. The subsequent
+0.2.11 system installation is recorded above.
 
 ## 0.2.9 — current-focus voice input
 

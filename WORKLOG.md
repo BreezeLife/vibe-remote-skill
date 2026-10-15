@@ -1030,3 +1030,12 @@ Independent package expansion confirmed LocalSystem-only /Applications, no reloc
 matching plist/icon, arm64 and strict signature. The user then confirmed drafts saved, app
 quit and installation authorized. A private exact-byte settings backup was created before
 installation; the final installed version and permission state remain to be checked.
+
+Installer subsequently displayed successful 0.2.11 completion. Verified /Applications bundle
+version 0.2.11/build 14, strict signature, no ~/Applications copy, retained installer and exact
+settings equality with the private pre-update backup. Launched via computer use: home UI read
+successfully, but navigation to Connections again returned a native pipe-closed error. Therefore
+the UI channel is not considered recovered. System Settings remains readable; selecting Add in
+Accessibility opened a Touch ID/password authorization prompt. Asked for explicit user consent
+for the current system app's AX access and system authentication; no grant has been claimed.
+Implementation was committed/pushed as `dedf63a`; hosted results remain pending.
