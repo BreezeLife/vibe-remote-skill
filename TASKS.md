@@ -30,6 +30,29 @@ GitHub checks for implementation f3520b3 (run 38179123590) and documentation 803
 (run 38179199650) completed successfully.
 Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
+## 0.2.11 — current-focus permission preflight
+
+User screenshots show the app's missing-Accessibility warning. System Settings shows a same-name
+Vibe Remote switch enabled, but the user reports the app still says unauthorized after refreshing.
+One system /Applications 0.2.9 process and a valid ad-hoc bundle signature were observed.
+The exact stale-grant/identity cause is not established; no permissions were changed.
+
+- [x] Reject direct external preparation when the focused-input service is not AX trusted,
+  including manual trigger, without reading the input or starting audio/shortcuts.
+- [x] Keep UI guidance consistent; preserve draft/manual and first-hold permission rechecks.
+- [x] Regression checks: focused input 68, external dictation 70 and controls integration
+  96 scenarios/293 assertions; Python 30 tests and neutral config validation passed.
+- [x] Release/package build passed for 0.2.11/build 14, system /Applications.
+- [x] Independently verify final package version/icon, LocalSystem /Applications only,
+  nonrelocation, arm64, strict ad-hoc signature and checksum.
+- [ ] Preserve drafts, install, restore current-app authorization if needed, then repeat actual
+  remote → loopback → Doubao → plain-editor transcription. No successful transcription yet.
+
+Package: ~/Downloads/VibeRemote-0.2.11-System-20261015/VibeRemote-0.2.11-arm64.pkg
+(3,518,563 bytes; app ad-hoc signed, installer unsigned/unnotarized).
+SHA-256: 8c70d65214b5922adc6717868f17972ef59a01dc40e5d2537cccd09e0d621e80.
+Still installed/running: 0.2.9/build 12. The new preflight does not grant OS permissions.
+
 ## 0.2.10 — explicit current-input submission
 
 Implementation `8a107fa` is pushed to origin/main. Hosted checks completed successfully:

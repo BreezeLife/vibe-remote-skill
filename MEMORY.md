@@ -320,3 +320,15 @@ experimental project APIs are not required by this milestone.
   Do not substitute unrestricted raw-key pass-through, run the entire GUI as root, or invent
   private entitlements. A scoped helper with authenticated IPC and explicit system approval
   is a future implementation requirement; 0.2.10 does not include or register one.
+
+## 2026-10-15 — verify current-process permission before external preparation
+
+- Current-focus external dictation requires the focused-input service's live AX trust even in
+  manual trigger mode. Preparation must check permission without reading the foreground input;
+  physical-hold capture still rechecks permission and target. Draft/manual remains independent.
+- A System Settings switch for a display name does not establish the running process's trust.
+  Ad-hoc signing uses a build-specific designated requirement; upgrades can invalidate old grants.
+  Preserve needed drafts, update first, then restore only the final /Applications app's entry
+  through user-approved System Settings if refreshing still reports denied. Never reset all TCC.
+- Preparation confirmations are transient and reset on navigation/preparation attempts. Unchecked
+  controls in a later screenshot do not prove that the user never prepared an earlier attempt.

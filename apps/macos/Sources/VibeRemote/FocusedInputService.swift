@@ -3,6 +3,8 @@ import ApplicationServices
 import Foundation
 
 protocol FocusedInputServicing: AnyObject {
+    /// Reads process trust only; never captures a field, prompts or changes focus.
+    var permissionGranted: Bool { get }
     func capture() throws -> FocusedInputTarget
     func isCurrent(_ target: FocusedInputTarget, requireUnchangedText: Bool) -> Bool
     func insert(_ text: String, into target: FocusedInputTarget) throws
@@ -67,6 +69,7 @@ final class FocusedInputService: FocusedInputServicing {
     private let identity = UUID()
     init(driver: FocusedInputDriver) { self.driver = driver }
     convenience init() { self.init(driver: SystemFocusedInputDriver()) }
+    var permissionGranted: Bool { driver.isTrusted }
 
     func capture() throws -> FocusedInputTarget {
         try checkAccess()

@@ -218,5 +218,50 @@ do {
     try c.prepare(p, microphoneConfirmed: true, shortcutConfirmed: true)
     check(!c.completeDirect(providerFinished: true), "draft destination cannot take direct completion path")
 }
+// Direct preparation must reject known missing process permission before the user
+// starts the provider. The input itself is captured only on the later remote hold.
+for mode in [VoiceTriggerMode.manual, .hold, .toggle] {
+    let (c, a, k, initial, f) = directFixture(); var p = initial; p.triggerMode = mode
+    f.isTrusted = false
+    let reason = c.currentInputPreparationBlockReason
+    check(reason?.contains("当前运行的 Vibe Remote") == true && f.reads == 0,
+          "shared \(mode) preflight explains current process trust without inspecting a field")
+    rejected("direct \(mode) preparation requires focused-input permission even when shortcuts are authorized") {
+        try c.prepare(p, destination: .currentFocus, microphoneConfirmed: true,
+                      shortcutConfirmed: true, autoSendDisabled: true)
+    }
+    check(c.phase == .idle && c.profile == nil, "denied \(mode) preparation does not arm or retain an active profile")
+    check(f.reads == 0 && f.writes == 0 && a.starts == 0 && k.events.isEmpty,
+          "denied \(mode) preparation has no input, audio or key side effects")
+    // Keep the rest of the regression observable when running against the old behavior.
+    if c.isBusy { _ = c.discard(providerFinished: true) }
+    f.isTrusted = true
+    check(c.currentInputPreparationBlockReason == nil && f.reads == 0,
+          "shared \(mode) preflight observes restored permission without a stale denial")
+    try c.prepare(p, destination: .currentFocus, microphoneConfirmed: true,
+                  shortcutConfirmed: mode != .manual, autoSendDisabled: true)
+    check(c.phase == .prepared && f.reads == 0 && a.starts == 0 && k.events.isEmpty,
+          "restored permission permits \(mode) preparation without capturing the configuration window")
+}
+do {
+    let (c, a, k, initial, f) = directFixture(); var p = initial; p.triggerMode = .manual
+    try c.prepare(p, destination: .currentFocus, microphoneConfirmed: true,
+                  shortcutConfirmed: false, autoSendDisabled: true)
+    f.isTrusted = false
+    c.startCapture(sampleRate: 16000)
+    check(c.phase == .review && c.status.contains("辅助功能"), "permission loss after preparation remains an explicit first-hold failure")
+    check(a.starts == 0 && f.reads == 0 && f.writes == 0 && k.events.isEmpty,
+          "late permission loss cannot read the target, route audio or trigger the provider")
+}
+do {
+    let (c, a, k, initial) = fixture(); var p = initial; p.triggerMode = .manual
+    k.isAuthorized = false
+    try c.prepare(p, destination: .draft, microphoneConfirmed: true, shortcutConfirmed: false)
+    check(c.phase == .prepared && a.starts == 0 && k.events.isEmpty,
+          "manual draft preparation remains available without focus service or shortcut permission")
+    c.startCapture(sampleRate: 16000)
+    check(c.phase == .capturing && a.starts == 1 && k.events.isEmpty,
+          "manual draft uses its own receiver without requesting AX access or posting keys")
+}
 print("\(assertions) external dictation assertions, \(failures) failures")
 exit(failures == 0 ? 0 : 1)

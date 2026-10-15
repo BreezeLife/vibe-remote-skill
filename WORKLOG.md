@@ -1002,3 +1002,31 @@ Pushed implementation `8a107fa` to origin/main and verified the remote head. Git
 run 38757521451 completed successfully for the native macOS app and all four macOS/Linux
 Python 3.10/3.13 jobs. No installer was uploaded or installed in this step. User-led Doubao
 audio/transcription and the privileged HID path remain pending.
+
+### Current-focus preparation exposed a missing permission preflight
+
+The user's new screenshots show an orange Accessibility warning and unchecked preparation
+confirmations. Those controls are transient and can reset; their later state does not establish
+whether an earlier preparation occurred. Computer use observed the same-name System Settings
+switch enabled, while the user reports Vibe Remote still shows unauthorized after its own refresh.
+A read-only check found one 0.2.9 process in /Applications and a valid, build-hash-based ad-hoc
+signature. A narrowly scoped system log query only reported unresolved old preview-bundle URLs;
+it does not prove which identity owns the visible switch. No permission was modified.
+
+Source tracing confirmed manual/current-focus preparation skipped actual focused-input permission
+and only required a non-nil service. The first physical hold could therefore reject audio after
+the UI had entered prepared. New fake-service regressions reproduced six expected failures across
+manual, hold and toggle modes. Implementing an early read-only permission check and aligned UI;
+retain fresh physical-hold checks and draft/manual compatibility. Package update precedes renewed
+authorization so a later ad-hoc update does not immediately supersede the tested identity.
+
+The fix passed focused input 68, external dictation 70 and controls integration 96 scenarios/
+293 assertions; the root independently reran focused/external checks plus Python 30 and neutral
+config validation. Read-only review found no required corrections. Release/package build passed
+for 0.2.11/build 14. Package is 3,518,563 bytes with SHA-256
+8c70d65214b5922adc6717868f17972ef59a01dc40e5d2537cccd09e0d621e80.
+No installation, permission grant or successful real transcription is claimed by these checks.
+Independent package expansion confirmed LocalSystem-only /Applications, no relocation,
+matching plist/icon, arm64 and strict signature. The user then confirmed drafts saved, app
+quit and installation authorized. A private exact-byte settings backup was created before
+installation; the final installed version and permission state remain to be checked.

@@ -19,8 +19,9 @@ final class FakeFocusedDriver: FocusedInputDriver {
     var changeFocusAfterWrite = false
     var losePermissionAfterWrite = false
     var loseSnapshotAfterWrite = false
-    var writes = 0
+    var reads = 0, writes = 0
     func snapshot() throws -> FocusedInputSnapshot {
+        reads += 1
         if readError { throw FocusedInputError.unavailable }
         return current
     }
@@ -53,6 +54,15 @@ final class FakeFocusedDriver: FocusedInputDriver {
 }
 
 @MainActor func run() {
+    scenario("permission preflight is read-only and current") { driver, service in
+        let input: FocusedInputServicing = service
+        check(input.permissionGranted, "preflight returns current trusted process state")
+        driver.isTrusted = false
+        check(!input.permissionGranted, "preflight observes revoked process trust")
+        driver.isTrusted = true
+        check(input.permissionGranted, "preflight observes restored process trust")
+        check(driver.reads == 0 && driver.writes == 0, "permission preflight never reads or writes an input")
+    }
     scenario("UTF-16 replacement") { driver, service in
         let target = try service.capture()
         check(target.appName == "Fixture Editor", "lease has human-readable app name")

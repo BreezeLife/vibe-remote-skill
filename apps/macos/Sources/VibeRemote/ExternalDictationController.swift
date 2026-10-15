@@ -70,6 +70,14 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
     var isBusy: Bool { phase != .idle }
     var canSettle: Bool { phase == .review || phase == .prepared }
     var canAutomateShortcut: Bool { hotkeys.isAuthorized }
+    /// Shared by preparation and its UI. Target capture must wait for the remote hold.
+    var currentInputPreparationBlockReason: String? {
+        guard let focusedInput else { return "当前输入框检查不可用。" }
+        guard focusedInput.permissionGranted else {
+            return "当前运行的 Vibe Remote 尚无法使用辅助功能；请在「连接与权限」刷新检查，权限生效后再准备。"
+        }
+        return nil
+    }
     var devices: [RemoteAudioDevice] { audio.availableDevices() }
     private let audio: RemoteAudioOutputting
     private let hotkeys: DictationHotkeySending
@@ -92,6 +100,9 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
     func prepare(_ profile: VoiceInputProfile, destination: VoiceInputDestination = .draft,
                  microphoneConfirmed: Bool, shortcutConfirmed: Bool, autoSendDisabled: Bool = false) throws {
         guard !isBusy else { throw ExternalDictationError.message("请先处理当前接收框。") }
+        if destination == .currentFocus, let reason = currentInputPreparationBlockReason {
+            throw ExternalDictationError.message(reason)
+        }
         try profile.validate()
         guard profile.provider != .appleSpeech, microphoneConfirmed,
               let uid = profile.outputDeviceUID, devices.contains(where: { $0.id == uid }) else {
@@ -100,8 +111,8 @@ final class ExternalDictationController: ObservableObject, ExternalDictationHand
         guard profile.triggerMode == .manual || (shortcutConfirmed && hotkeys.isAuthorized) else {
             throw ExternalDictationError.message("请检查输入法快捷键并授权辅助功能；也可使用手动模式。")
         }
-        guard destination != .currentFocus || (autoSendDisabled && focusedInput != nil) else {
-            throw ExternalDictationError.message("直接输入前，请确认输入法已关闭自动发送，并启用当前输入框检查。")
+        guard destination != .currentFocus || autoSendDisabled else {
+            throw ExternalDictationError.message("直接输入前，请确认输入法已关闭自动发送。")
         }
         self.profile = profile
         self.destination = destination

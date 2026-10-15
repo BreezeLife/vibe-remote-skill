@@ -31,8 +31,8 @@ struct VoiceInputSettingsView: View {
                      ? "先检查 Vibe Remote 草稿，再决定插入和发送；保留原有工作区流程。"
                      : "保存后，点击目标输入框再按住遥控器。文字填到开始说话时的输入位置，不按回车、不自动发送；原工作区草稿独立保留。")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if destination == .currentFocus && !controls.accessibilityGranted {
-                    Label("确认当前输入位置需要辅助功能权限，请在「连接与权限」启用。", systemImage: "exclamationmark.triangle")
+                if destination == .currentFocus, let reason = external.currentInputPreparationBlockReason {
+                    Label(reason, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 }
             }.disabled(!controls.canEdit)
@@ -78,7 +78,7 @@ struct VoiceInputSettingsView: View {
                                 .buttonStyle(.borderedProminent)
                                 .disabled(!controls.canEdit || !voice.ready || !microphoneConfirmed || profile.outputDeviceUID == nil ||
                                           (profile.triggerMode != .manual && !shortcutConfirmed) ||
-                                          (destination == .currentFocus && !autoSendDisabled))
+                                          (destination == .currentFocus && (!autoSendDisabled || external.currentInputPreparationBlockReason != nil)))
                         }
                         if !voice.ready { Text("遥控器语音通道就绪后才能开始测试；现在可以先保存配置。") }
                         Text("这些确认仅用于本次准备；不代表正在录音或已通过实测。第三方工具可能联网处理并保存音频/文字，以其设置为准。")
@@ -208,7 +208,12 @@ struct VoiceInputSettingsView: View {
         return saved
     }
     private func prepare() {
-        guard controls.canEdit, voice.ready, save() else { return }
+        guard controls.canEdit, voice.ready else { return }
+        if destination == .currentFocus, let reason = external.currentInputPreparationBlockReason {
+            status = reason
+            return
+        }
+        guard save() else { return }
         do {
             try external.prepare(profile, destination: destination, microphoneConfirmed: microphoneConfirmed,
                                  shortcutConfirmed: shortcutConfirmed, autoSendDisabled: autoSendDisabled)
