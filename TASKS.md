@@ -32,6 +32,10 @@ Hosted verification: https://github.com/BreezeLife/vibe-remote-skill/actions.
 
 ## 0.2.10 — explicit current-input submission
 
+Implementation `8a107fa` is pushed to origin/main. Hosted checks completed successfully:
+https://github.com/BreezeLife/vibe-remote-skill/actions/runs/38757521451
+(macOS native app plus macOS/Linux Python 3.10 and 3.13). Hardware acceptance remains separate.
+
 User requested a physical key for manual submission after dictation. Keep OK's existing
 two-step full-text review: first press previews the current bound input, second confirms Send
 or an available Codex Steer. Voice release itself never submits.

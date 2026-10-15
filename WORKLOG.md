@@ -995,3 +995,10 @@ physical Ctrl hold, then remote voice hold, remote release, a short drain interv
 release. The user reported a recording indication but no text. This confirms neither delivery
 to the virtual input nor recognition. Requested the remote meter/duration observation and the
 app's forwarding status before another attempt. No audio or transcript was saved.
+
+### 0.2.10 GitHub synchronization and hosted verification
+
+Pushed implementation `8a107fa` to origin/main and verified the remote head. GitHub Actions
+run 38757521451 completed successfully for the native macOS app and all four macOS/Linux
+Python 3.10/3.13 jobs. No installer was uploaded or installed in this step. User-led Doubao
+audio/transcription and the privileged HID path remain pending.
